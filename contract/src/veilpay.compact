@@ -148,15 +148,17 @@ export circuit refund(intentId: Uint<64>, refundAmount: Uint<128>): [] {
   assert(refundAmount <= intent.paidAmount, "refund exceeds paid amount");
 
   sequence.increment(1);
-  intents.insert(disclose(intentId), Intent {
+  intents.insert(disclose(intentId), disclose(Intent {
     merchantId: intent.merchantId,
     amount: intent.amount,
     expiresAt: intent.expiresAt,
     status: IntentStatus.REFUNDED,
     secretCommitment: intent.secretCommitment,
     paidAmount: intent.paidAmount,
-    refundedAmount: refundAmount
-  });
+    // refundAmount is a private circuit parameter; the receipt must state it
+    // publicly, so the whole struct is explicitly disclosed here.
+    refundedAmount: refundAmount,
+  }));
 }
 
 // Merchant cancels an unpaid intent (e.g. checkout abandoned).

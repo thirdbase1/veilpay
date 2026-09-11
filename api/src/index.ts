@@ -76,7 +76,7 @@ export class VeilPayAPI {
 
   private merchantIdentityHex(privateState: VeilPayPrivateState): string {
     return toHex(
-      VeilPay.pureCircuits.merchantIdentity(privateState.merchantSecretKey),
+      VeilPay.pureCircuits.merchantIdentityOf(privateState.merchantSecretKey),
     );
   }
 
