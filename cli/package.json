@@ -8,6 +8,8 @@
     "build": "rm -rf dist && tsc --project tsconfig.build.json && cp -R ../contract/src/managed dist/contract/src/managed",
     "ci": "npm run typecheck && npm run build",
     "preprod-remote": "node --experimental-specifier-resolution=node --loader ts-node/esm src/launcher/preprod.ts",
+    "preprod-gateway": "node --experimental-specifier-resolution=node --loader ts-node/esm src/gateway-deploy.ts",
+    "preprod-tx": "node --experimental-specifier-resolution=node --loader ts-node/esm src/gateway-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

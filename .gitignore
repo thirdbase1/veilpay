@@ -6,4 +6,5 @@ src/managed/
 logs/
 .env
 .veilpay-state/
+midnight-level-db/
 *.tgz

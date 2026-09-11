@@ -14,6 +14,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
@@ -41,7 +42,7 @@ import { randomBytes } from '../../api/src/utils/index.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).WebSocket = WebSocket;
 
-export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+export const currentDir = path.resolve(fileURLToPath(import.meta.url), '..');
 const STATE_DIR = path.resolve(currentDir, '..', '.veilpay-state');
 const seedFile = (): string => path.join(STATE_DIR, 'wallet.seed');
 const addressFile = (): string => path.join(STATE_DIR, 'contract-address');

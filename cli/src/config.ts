@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
@@ -20,7 +21,7 @@ export interface Config {
   getEnvironment(): EnvironmentConfiguration;
 }
 
-export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+export const currentDir = path.resolve(fileURLToPath(import.meta.url), '..');
 
 export const PREPROD_ENDPOINTS = {
   indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
