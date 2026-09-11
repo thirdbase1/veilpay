@@ -13,6 +13,7 @@ import {
   type VeilPayProviders,
   type DeployedVeilPayContract,
   type PrivateStateId,
+  type IntentView,
   veilPayPrivateStateKey,
 } from './common-types.js';
 import { CompiledVeilPayContractContract } from '../../contract/src/index';
@@ -27,7 +28,7 @@ export * from './common-types.js';
 /** Snapshot of every intent currently in the public ledger. */
 export type LedgerSnapshot = {
   sequence: bigint;
-  intents: VeilPay.Intent[];
+  intents: IntentView[];
 };
 
 /**
@@ -98,7 +99,8 @@ export class VeilPayAPI {
     );
 
     const txData = await this.deployedContract.callTx.createIntent(amount, expiresAt);
-    const id = txData.public.result;
+    // Circuit results live on `txData.private` (`public` only carries state/transcript).
+    const id = txData.private.result;
     this.logger?.info(`intent created with id ${id}`);
     return id;
   }
