@@ -37,8 +37,9 @@ import { syncWallet, waitForUnshieldedFunds } from './wallet-utils.js';
 import { generateDust } from './generate-dust.js';
 import { randomBytes } from '../../api/src/utils/index.js';
 
-// @ts-expect-error: needed for WebSocket usage through the wallet/indexer providers
-globalThis.WebSocket = WebSocket;
+// Needed for WebSocket usage through the wallet/indexer providers.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(globalThis as any).WebSocket = WebSocket;
 
 export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
 const STATE_DIR = path.resolve(currentDir, '..', '.veilpay-state');
