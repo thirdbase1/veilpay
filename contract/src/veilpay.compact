@@ -130,7 +130,9 @@ export circuit pay(intentId: Uint<64>): [] {
     expiresAt: intent.expiresAt,
     status: IntentStatus.PAID,
     secretCommitment: intent.secretCommitment,
-    paidAmount: intent.paidAmount + intent.amount,
+    // Payment is single-shot (only ACTIVE intents can pay), so the verified
+    // paid total equals the intent amount exactly.
+    paidAmount: intent.amount,
     refundedAmount: intent.refundedAmount
   });
 }
