@@ -48,6 +48,9 @@ npm --workspace cli run preprod-tx -- pay <id> <secretHex>
 - [docs/V1-VS-V2.md](docs/V1-VS-V2.md) -- what v1 and v2 each are, why v2
   exists (NullPay parity: real shielded token transfers), and which one to
   integrate against.
+- [docs/MIGRATION-V2-INVOICE.md](docs/MIGRATION-V2-INVOICE.md) -- exact
+  schema/vocabulary delta for moving the web app from v1 intents to v2
+  invoices, with re-verified live-contract ground truth.
 - [docs/WEBSITE-INTEGRATION.md](docs/WEBSITE-INTEGRATION.md) -- build a website
   on the deployed contract: architecture, provider singleton, API-route
   recipes, lifecycle semantics, gotchas.
