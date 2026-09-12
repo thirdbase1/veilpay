@@ -60,8 +60,13 @@ Full v2 schemas (including the `coin: QualifiedShieldedCoinInfo` argument and
 
 ## Rebuilding the managed artifacts
 
-`contract/src/managed/` is gitignored (prover keys are multi-MB). Two ways to
-regenerate:
+The lightweight compiled artifacts are committed: the contract decoders
+(`managed/<name>/contract/index.js|d.ts`), `contract-info.json`, verifier keys,
+and bzkir/zkir files for both `veilpay` (v1) and `veilpay2` (v2). A clone can
+read on-chain state and verify proofs with no build step.
+
+Only the multi-MB `.prover` keys stay gitignored. Regenerate a full layout when
+`*.compact` changes:
 
 1. CI: push to `main`; the workflow compiles both contracts and uploads a
    `veilpay-managed` artifact containing `veilpay/` and `veilpay2/`. Unzip into

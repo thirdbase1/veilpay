@@ -252,10 +252,12 @@ npm --workspace cli run typecheck
 npm --workspace contract run compact   # requires compactc or the CI artifact
 ```
 
-`contract/src/managed/` is gitignored; CI compiles it fresh with
+The compiled contract modules, verifier keys, and zkir files under
+`contract/src/managed/` are committed, so your app can import the ledger
+decoder and verify against the live contract with no build step. Multi-MB
+`.prover` keys are gitignored; CI compiles fresh with
 `midnightntwrk/setup-compact-action@v1` (compact 0.31.1) and uploads the
-`veilpay-managed` artifact. Grab it from the latest green run if you do not
-have a local compiler.
+`veilpay-managed` artifact if you need the full layout.
 
 ## Gotchas
 
