@@ -52,6 +52,8 @@ import {
 } from '@midnight-ntwrk/midnight-js-types';
 import { type VeilPayProviders, type PrivateStateId } from '../../api/src/common-types.js';
 import { type VeilPayPrivateState } from '../../contract/src/witnesses.js';
+import { type VeilPay2Providers, type PrivateStateId2 } from '../../api/src/common-types.js';
+import { type VeilPay2PrivateState } from '../../contract/src/witnesses2.js';
 
 const currentDir = path.resolve(fileURLToPath(import.meta.url), '..');
 export const STATE_DIR = path.resolve(currentDir, '..', '.veilpay-state');
@@ -63,6 +65,10 @@ const GW_INDEXER_HTTP = `${GATEWAY}/api/v4/graphql`;
 const GW_INDEXER_WS = `wss://api-preprod.1am.xyz/api/v4/graphql/ws`;
 
 export const EXPLORER = 'https://preprod.midnightexplorer.com';
+
+/** Which compiled contract a stack/provision is built for. */
+export type ContractVersion = 'v1' | 'v2';
+export const ADDRESS_FILE_V2 = path.join(STATE_DIR, 'contract-address-v2');
 
 type Logger = { info: (m: string) => void; warn?: (m: string) => void };
 
@@ -423,6 +429,12 @@ export interface GatewayStack {
   close: () => Promise<void>;
 }
 
+export interface GatewayStack2 {
+  providers: VeilPay2Providers;
+  session: GatewaySession;
+  close: () => Promise<void>;
+}
+
 /**
  * Build the full VeilPay provider stack over the gateway: hosted proving,
  * sponsored balancing, RPC submission, relayed indexer queries, and the
@@ -430,8 +442,9 @@ export interface GatewayStack {
  */
 export async function buildGatewayStack(
   logger: Logger,
-  opts: { privateStateStoreName?: string } = {},
-): Promise<GatewayStack> {
+  opts: { version?: ContractVersion; privateStateStoreName?: string } = {},
+): Promise<GatewayStack & GatewayStack2> {
+  const version = opts.version ?? 'v1';
   setNetworkId('preprod');
   const seed = loadSeed();
   const session = await gatewaySession(seed, logger);
@@ -450,7 +463,10 @@ export async function buildGatewayStack(
   // Shielded keys come from the raw seed (matches the faucet-path identity).
   const zswapSecretKeys = ZswapSecretKeys.fromSeed(unhex(seed));
 
-  const zkConfigPath = path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'veilpay');
+  const zkConfigPath = path.resolve(
+    currentDir, '..', '..', 'contract', 'src', 'managed',
+    version === 'v2' ? 'veilpay2' : 'veilpay',
+  );
   const zkConfigProvider = new NodeZkConfigProvider<'createIntent' | 'pay' | 'refund' | 'cancel'>(zkConfigPath);
 
   const relay = await startIndexerRelay(session, logger);
@@ -559,7 +575,7 @@ export async function buildGatewayStack(
         throw new Error(`gateway submit returned non-JSON (${res.status}): ${text.slice(0, 200)}`);
       }
       if (json.error) {
-        throw new Error(`gateway submit rejected: ${json.error.message ?? JSON.stringify(json.error)}`);
+        throw new Error(`gateway submit rejected: ${json.error.message ?? JSON.stringify(json.error)} | full: ${text.slice(0, 400)}`);
       }
       if (!json.result) {
         throw new Error(`gateway submit returned no hash: ${text.slice(0, 200)}`);
@@ -570,13 +586,14 @@ export async function buildGatewayStack(
   };
 
   const basePublicData = indexerPublicDataProvider(relay.httpUrl, relay.wsUrl);
-  const providers: VeilPayProviders = {
+  const storeName = opts.privateStateStoreName ?? (version === 'v2' ? 'veilpay2-private-state' : 'veilpay-private-state');
+  const providers = {
     privateStateProvider: levelPrivateStateProvider<PrivateStateId, VeilPayPrivateState>({
-      privateStateStoreName: opts.privateStateStoreName ?? 'veilpay-private-state',
-      signingKeyStoreName: 'veilpay-private-state-signing-keys',
+      privateStateStoreName: storeName,
+      signingKeyStoreName: `${storeName}-signing-keys`,
       privateStoragePasswordProvider: () => 'VeilPay-Local-2026!',
       accountId: seed,
-    }),
+    }) as unknown as VeilPayProviders['privateStateProvider'] & VeilPay2Providers['privateStateProvider'],
     publicDataProvider: withPollingWatches(basePublicData, session, pendingMidnightHashes, logger),
     zkConfigProvider,
     proofProvider: httpClientProofProvider(GATEWAY, zkConfigProvider, {
@@ -584,7 +601,7 @@ export async function buildGatewayStack(
     }),
     walletProvider,
     midnightProvider,
-  };
+  } as unknown as VeilPayProviders & VeilPay2Providers;
 
   return {
     providers,
