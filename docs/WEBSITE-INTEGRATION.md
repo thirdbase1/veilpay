@@ -3,6 +3,14 @@
 Everything an agent (or human) needs to plug the deployed VeilPay payment-intent
 contract into a website.
 
+> **Which contract?** This guide documents **v1** (the oracle: verifies
+> payments, moves no tokens). **v2** is live at
+> `0x85a0f911bb554bf4b7e9a69bb2ee2c20a03b823b20274eade45c6b18f53583a7` and
+> additionally settles real shielded-token value (NullPay parity). New
+> integrations should target v2; see
+> [V1-VS-V2.md](V1-VS-V2.md) for the full difference, and
+> `deployments/preprod-v2.json` for its circuit metadata.
+
 ## Live Contract
 
 | Field | Value |
