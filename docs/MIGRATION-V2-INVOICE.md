@@ -18,6 +18,25 @@ Do NOT rely on the indexer `contractAction(address)` lookup: on the gateway
 indexer it intermittently returns null for recent contracts. Hash-based tx
 queries and direct state reads are reliable.
 
+## Network endpoints (runtime vs deploy-time)
+
+The live web app does NOT need the 1AM gateway (`api-preprod.1am.xyz`). That
+endpoint is our DEPLOY-TIME workaround only (sponsored DUST, hosted proving,
+authenticated indexer session). App runtime uses public Midnight endpoints:
+
+- Indexer reads: `https://indexer.preprod.midnight.network/api/v3/graphql`
+  (unauthenticated; same surface condition's live `/verify` + `/explorer` use)
+- Tx submission / state: `wss://rpc.preprod.midnight.network` (public RPC;
+  users sign via the Lace/1AM browser EXTENSION and pay fees from their own
+  DUST -- the app never sponsors anyone)
+- Proving: client-side from the committed `.zkir`/verifier keys under
+  `contract/src/managed/veilpay2/` (serve statically; no proof server needed)
+
+Rules: never ship or reuse `cli/.veilpay-state/gw_session.json` in the site
+(personal, expiring deploy session -- a leak and a point of failure), and on
+first integration confirm the official v3 indexer decodes the v2 ledger shape
+identically to the v4 gateway reads (one-line schema fix if it drifts).
+
 ## Hard schema breaks (v1 -> v2)
 
 1. `createIntent` gained two arguments:
