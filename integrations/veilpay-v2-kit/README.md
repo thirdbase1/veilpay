@@ -11,6 +11,7 @@ No guessing. Follow the documents in order and you will not error.
 | [PUBLIC-READS.md](PUBLIC-READS.md) | Read invoice status publicly (checkout page, dashboard) |
 | [WALLETS-LACE-1AM.md](WALLETS-LACE-1AM.md) | Lace + 1AM wallet: what works today, what is phase 2 |
 | [INVOICE-LIFECYCLE.md](INVOICE-LIFECYCLE.md) | Full lifecycle, NullPay mapping, v1 -> v2 migration checklist |
+| [NULLPAY-UI-PHASE1.md](NULLPAY-UI-PHASE1.md) | Exact NullPay phase-1 UI (every field, state, route) mapped onto our v2 invoice pages |
 
 ## Contract card (memorize this)
 
