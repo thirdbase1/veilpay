@@ -90,17 +90,24 @@ UTXO from its zswap state, (b) proving (hosted `/check`+`/prove` or local),
 ## 1AM endpoint reality check (for the app, not the deployer)
 
 ```text
-Indexer HTTP  https://api-preprod.1am.xyz/api/v4/graphql   <- app runtime uses this
-Indexer WS    wss://api-preprod.1am.xyz/api/v4/graphql/ws  <- subscriptions (optional)
-RPC           wss://rpc.preprod.midnight.network           <- submissions (browser Phase 2)
-Gateway auth  X-Session-Token (Schnorr, cached in cli/.veilpay-state/gw_session.json)
-              <- deploy-time/writes only; NOT needed for public reads
+App runtime (public, verified 2026-09-13):
+  Indexer HTTP  https://indexer.preprod.midnight.network/api/v3/graphql
+  Indexer WS    wss://indexer.preprod.midnight.network/api/v3/graphql/ws
+  RPC           wss://rpc.preprod.midnight.network           <- browser submissions (Phase 2)
+
+Deploy-time only (server, NEVER in the site):
+  Gateway       https://api-preprod.1am.xyz  (hosted /check+/prove, sponsored
+                DUST /balance-only, authenticated /api/v4/graphql, /rpc/midnight)
+  Session       X-Session-Token (Schnorr, cached in cli/.veilpay-state/gw_session.json)
+                personal and expiring -- a leak is a compromise, so keep it on the server
 ```
 
-The live app's read path (indexer) needs no session token. The write path
-(create/pay) currently does, because it rides the gateway's hosted proving +
-sponsored DUST balancing; that whole path is implemented once in
-`cli/src/gateway-stack.ts` and should live only on your server.
+The live app's read path (public v3 indexer) needs no session token and was
+verified against the v2 ledger on 2026-09-13. The write path (create/pay)
+currently rides the gateway's hosted proving + sponsored DUST balancing on
+the server; Phase 2 replaces server-writes with browser-writes (wallet
+extension proving via `getProvingProvider` + `balanceUnsealedTransaction` +
+`submitTransaction`, user pays their own fees).
 
 ## Funding a demo payer (what NOT to do)
 
