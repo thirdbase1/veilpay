@@ -62,6 +62,9 @@ npm --workspace cli run preprod-tx2 -- create 2500 50
 # one-intent / full-ledger public status read
 npm --workspace cli run preprod-tx2 -- status
 
-# standalone verification script (prints all intents)
+# public status read, no keys/session (verified live 2026-09-13):
+node scripts/verify-v2-public.mjs
+
+# gateway-session status read (server fallback):
 node scripts/verify-v2-live.mjs
 ```
