@@ -239,6 +239,18 @@ const TX_BY_HASH_QUERY = `
 const DEPLOY_TX_QUERY = `
   query($address: HexEncoded!) {
     contractAction(address: $address) {
+      ... on ContractCall { deploy { transaction {
+        id protocolVersion raw hash
+        contractActions { address }
+        block { height hash author timestamp }
+        unshieldedCreatedOutputs { owner intentHash tokenType value }
+        unshieldedSpentOutputs { owner intentHash tokenType value }
+        ... on RegularTransaction {
+          identifiers
+          fees { estimatedFees paidFees }
+          transactionResult { status segments { id success } }
+        }
+      } } }
       ... on ContractDeploy { transaction {
         id protocolVersion raw hash
         contractActions { address }
@@ -387,13 +399,17 @@ async function pollDeployTx(
  *    *hash* the gateway reported from /balance-only instead (FIFO-ordered:
  *    balance -> submit -> watch is strictly sequential in midnight-js).
  *  - watchForDeployTxData: polls contractAction(address) directly, which the
- *    gateway indexer answers fine.
+ *    gateway indexer answers fine. NOTE: contractAction returns the *latest*
+ *    action for the address, which becomes a ContractCall once any intent has
+ *    been created; we follow its `deploy` edge, and callers can also pass the
+ *    known deploy-tx hash explicitly to skip address lookup entirely.
  */
 export function withPollingWatches(
   base: PublicDataProvider,
   session: GatewaySession,
   pendingMidnightHashes: string[],
   logger: Logger,
+  deployTxHash?: string,
 ): PublicDataProvider {
   return {
     ...base,
@@ -406,7 +422,9 @@ export function withPollingWatches(
     },
     async watchForDeployTxData(contractAddress: string): Promise<FinalizedTxData> {
       logger.info(`watchForDeployTxData: polling indexer for deploy of ${contractAddress}`);
-      const tx = await pollDeployTx(session, contractAddress, logger);
+      const tx = deployTxHash
+        ? await pollTxByHash(session, deployTxHash, logger)
+        : await pollDeployTx(session, contractAddress, logger);
       const actionIndex = (tx.contractActions ?? []).findIndex(
         (a: any) => a.address === contractAddress,
       );
@@ -442,7 +460,17 @@ export interface GatewayStack2 {
  */
 export async function buildGatewayStack(
   logger: Logger,
-  opts: { version?: ContractVersion; privateStateStoreName?: string } = {},
+  opts: {
+    version?: ContractVersion;
+    privateStateStoreName?: string;
+    /**
+     * Known deploy transaction hash (hex, 0x optional). When set, the join
+     * inclusion watch polls the indexer by hash instead of by contract
+     * address, which sidesteps the gateway's latest-action-per-address
+     * ambiguity (verified live 2026-09-14).
+     */
+    deployTxHash?: string;
+  } = {},
 ): Promise<GatewayStack & GatewayStack2> {
   const version = opts.version ?? 'v1';
   setNetworkId('preprod');
@@ -594,7 +622,13 @@ export async function buildGatewayStack(
       privateStoragePasswordProvider: () => 'VeilPay-Local-2026!',
       accountId: seed,
     }) as unknown as VeilPayProviders['privateStateProvider'] & VeilPay2Providers['privateStateProvider'],
-    publicDataProvider: withPollingWatches(basePublicData, session, pendingMidnightHashes, logger),
+    publicDataProvider: withPollingWatches(
+      basePublicData,
+      session,
+      pendingMidnightHashes,
+      logger,
+      opts.deployTxHash?.replace(/^0x/, ''),
+    ),
     zkConfigProvider,
     proofProvider: httpClientProofProvider(GATEWAY, zkConfigProvider, {
       headers: { 'X-Session-Token': session.token },
