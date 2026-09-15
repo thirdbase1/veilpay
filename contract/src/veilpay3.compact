@@ -175,7 +175,7 @@ export circuit settleStandard(
   }
 
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
-    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+    ZswapCoinPublicKey { bytes: disclose(opening.merchantCoinPk) }
   );
   const result = sendShielded(disclose(coin), merchant, disclose(opening.amount));
   if (result.change.is_some) {
@@ -219,7 +219,7 @@ export circuit settleMultiPayment(
   }
 
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
-    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+    ZswapCoinPublicKey { bytes: disclose(opening.merchantCoinPk) }
   );
   const result = sendShielded(disclose(coin), merchant, disclose(opening.amount));
   if (result.change.is_some) {
@@ -256,7 +256,7 @@ export circuit acceptDonation(
   }
 
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
-    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+    ZswapCoinPublicKey { bytes: disclose(opening.merchantCoinPk) }
   );
   const result = sendShielded(disclose(coin), merchant, disclose(amount));
   if (result.change.is_some) {
