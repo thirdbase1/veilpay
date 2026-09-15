@@ -270,11 +270,14 @@ export class VeilPay3API {
   /** Deploy a fresh v3 contract. */
   static async deploy(providers: VeilPay3Providers, logger?: Logger): Promise<VeilPay3API> {
     logger?.info('deployContract v3');
-    const deployed = await deployContract(providers, {
-      compiledContract: CompiledVeilPay3ContractContract,
-      privateStateId: veilPay3PrivateStateKey,
-      initialPrivateState: createVeilPay3PrivateState(utils.randomBytes(32), utils.randomBytes(32)),
-    });
+    const deployed = (await deployContract(
+      providers as never,
+      {
+        compiledContract: CompiledVeilPay3ContractContract,
+        privateStateId: veilPay3PrivateStateKey,
+        initialPrivateState: createVeilPay3PrivateState(utils.randomBytes(32), utils.randomBytes(32)),
+      } as never,
+    )) as unknown as DeployedVeilPay3Contract;
     return new VeilPay3API(deployed, providers, logger);
   }
 

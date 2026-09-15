@@ -1,3 +1,4 @@
+import { type InvoiceOpening as GeneratedOpening, type Ledger } from "./managed/veilpay3/contract/index.js";
 import { type WitnessContext } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
 
 /*
@@ -25,13 +26,13 @@ export type InvoiceOpening = {
 export type VeilPay3PrivateState = {
   readonly merchantSecretKey: Uint8Array;
   readonly receiptSecret: Uint8Array;
-  readonly invoiceOpenings: Readonly<Record<string, InvoiceOpening>>;
+  readonly invoiceOpenings: Readonly<Record<string, GeneratedOpening>>;
 };
 
 export const createVeilPay3PrivateState = (
   merchantSecretKey: Uint8Array,
   receiptSecret: Uint8Array,
-  invoiceOpenings: Record<string, InvoiceOpening> = {},
+  invoiceOpenings: Record<string, GeneratedOpening> = {},
 ): VeilPay3PrivateState => ({ merchantSecretKey, receiptSecret, invoiceOpenings });
 
 export const withInvoiceOpening3 = (
@@ -46,22 +47,22 @@ export const withInvoiceOpening3 = (
 export const witnesses3 = {
   merchantSecretKey: ({
     privateState,
-  }: WitnessContext<unknown, VeilPay3PrivateState>): [VeilPay3PrivateState, Uint8Array] => [
+  }: WitnessContext<Ledger, VeilPay3PrivateState>): [VeilPay3PrivateState, Uint8Array] => [
     privateState,
     privateState.merchantSecretKey,
   ],
 
   receiptSecret: ({
     privateState,
-  }: WitnessContext<unknown, VeilPay3PrivateState>): [VeilPay3PrivateState, Uint8Array] => [
+  }: WitnessContext<Ledger, VeilPay3PrivateState>): [VeilPay3PrivateState, Uint8Array] => [
     privateState,
     privateState.receiptSecret,
   ],
 
   invoiceOpening: (
-    { privateState }: WitnessContext<unknown, VeilPay3PrivateState>,
+    { privateState }: WitnessContext<Ledger, VeilPay3PrivateState>,
     invoiceId: bigint,
-  ): [VeilPay3PrivateState, InvoiceOpening] => {
+  ): [VeilPay3PrivateState, GeneratedOpening] => {
     const opening = privateState.invoiceOpenings[invoiceId.toString()];
     if (opening === undefined) {
       throw new Error(`No invoice opening known for invoice ${invoiceId}`);
