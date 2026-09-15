@@ -177,7 +177,7 @@ export circuit settleStandard(
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
     ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
   );
-  const result = sendShielded(disclose(coin), merchant, opening.amount);
+  const result = sendShielded(disclose(coin), merchant, disclose(opening.amount));
   if (result.change.is_some) {
     const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
     sendImmediateShielded(result.change.value, caller, result.change.value.value);
@@ -221,7 +221,7 @@ export circuit settleMultiPayment(
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
     ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
   );
-  const result = sendShielded(disclose(coin), merchant, opening.amount);
+  const result = sendShielded(disclose(coin), merchant, disclose(opening.amount));
   if (result.change.is_some) {
     const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
     sendImmediateShielded(result.change.value, caller, result.change.value.value);
@@ -258,7 +258,7 @@ export circuit acceptDonation(
   const merchant = left<ZswapCoinPublicKey, ContractAddress>(
     ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
   );
-  const result = sendShielded(disclose(coin), merchant, amount);
+  const result = sendShielded(disclose(coin), merchant, disclose(amount));
   if (result.change.is_some) {
     const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
     sendImmediateShielded(result.change.value, caller, result.change.value.value);
