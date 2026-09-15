@@ -1,0 +1,57 @@
+name: v3
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compile-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Compact Compiler
+        uses: midnightntwrk/setup-compact-action@v1
+        with:
+          compact-version: '0.31.1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Compile contracts (v1 + v2 + v3)
+        run: npm --workspace contract run compact
+
+      - name: Typecheck contract
+        run: npm --workspace contract run typecheck
+
+      - name: Test contract
+        run: npm --workspace contract run test
+
+      - name: Commit compiled v3 artifacts
+        run: |
+          rm -f contract/src/managed/veilpay3/keys/*.prover
+          git config user.name "veilpay-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A contract/src/managed
+          if git diff --cached --quiet; then
+            echo "no artifact changes"
+          else
+            git commit -m "chore(contract): commit compiled veilpay3 artifacts [skip ci]"
+            git push
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: veilpay3-managed
+          path: contract/src/managed/veilpay3
+          retention-days: 14

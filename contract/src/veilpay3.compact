@@ -1,0 +1,317 @@
+// VeilPay v3 — private invoices with atomic shielded settlement.
+//
+// Public ledger state contains commitments and lifecycle metadata only.
+// Amounts, token routing, merchant coin keys, payment secrets, and invoice
+// metadata are supplied through private witnesses and checked in-circuit.
+
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+export { ShieldedCoinInfo, QualifiedShieldedCoinInfo, ShieldedSendResult };
+
+export enum InvoiceType {
+  STANDARD,
+  MULTI_PAY,
+  DONATION
+}
+
+export enum InvoiceStatus {
+  ACTIVE,
+  PAID,
+  SETTLED,
+  CANCELLED,
+  REFUNDED
+}
+
+export struct InvoiceOpening {
+  amount: Uint<128>,
+  tokenColor: Bytes<32>,
+  merchantCoinPk: Bytes<32>,
+  invoiceType: InvoiceType,
+  paymentSecret: Bytes<32>,
+  salt: Bytes<32>
+}
+
+export struct InvoiceState {
+  invoiceCommitment: Bytes<32>,
+  merchantAuthCommitment: Bytes<32>,
+  invoiceType: InvoiceType,
+  expiresAt: Uint<64>,
+  version: Uint<64>,
+  status: InvoiceStatus
+}
+
+export ledger sequence: Counter;
+export ledger invoices: Map<Bytes<32>, InvoiceState>;
+export ledger usedNullifiers: Set<Bytes<32>>;
+export ledger receiptCommitments: Set<Bytes<32>>;
+
+witness merchantSecretKey(): Bytes<32>;
+witness invoiceOpening(invoiceId: Bytes<32>): InvoiceOpening;
+witness receiptSecret(): Bytes<32>;
+witness paymentNonce(invoiceId: Bytes<32>): Bytes<32>;
+
+export circuit merchantAuthCommitment(invoiceId: Bytes<32>, secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "veilpay:v3:merchant-auth:"),
+    invoiceId,
+    secret
+  ]);
+}
+
+// The invoice type is bound by explicit equality asserts in issueInvoice and
+// assertInvoiceOpening (enum values are not cast to Field here).
+export circuit invoiceCommitment(opening: InvoiceOpening): Bytes<32> {
+  return persistentHash<Vector<6, Bytes<32>>>([
+    pad(32, "veilpay:v3:invoice:"),
+    opening.amount as Field as Bytes<32>,
+    opening.tokenColor,
+    opening.merchantCoinPk,
+    opening.paymentSecret,
+    opening.salt
+  ]);
+}
+
+export circuit paymentNullifier(
+  invoiceId: Bytes<32>,
+  opening: InvoiceOpening,
+  nonce: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<5, Bytes<32>>>([
+    pad(32, "veilpay:v3:payment-nullifier:"),
+    invoiceId,
+    invoiceCommitment(opening),
+    opening.paymentSecret,
+    nonce
+  ]);
+}
+
+export circuit payerReceiptCommitment(
+  invoiceId: Bytes<32>,
+  opening: InvoiceOpening,
+  nonce: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<5, Bytes<32>>>([
+    pad(32, "veilpay:v3:payer-receipt:"),
+    invoiceId,
+    invoiceCommitment(opening),
+    nonce,
+    receiptSecret()
+  ]);
+}
+
+export circuit merchantReceiptCommitment(
+  invoiceId: Bytes<32>,
+  opening: InvoiceOpening,
+  nonce: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<5, Bytes<32>>>([
+    pad(32, "veilpay:v3:merchant-receipt:"),
+    invoiceId,
+    invoiceCommitment(opening),
+    nonce,
+    opening.merchantCoinPk
+  ]);
+}
+
+export circuit isZero(a: Bytes<32>): Boolean {
+  return a == pad(32, "");
+}
+
+export circuit isOpenTokenColor(a: Bytes<32>): Boolean {
+  return isZero(a);
+}
+
+export circuit assertInvoiceOpening(
+  state: InvoiceState,
+  opening: InvoiceOpening
+): [] {
+  assert(invoiceCommitment(opening) == state.invoiceCommitment, "invalid invoice opening");
+  assert(opening.invoiceType == state.invoiceType, "invoice type mismatch");
+  assert(opening.merchantCoinPk != pad(32, ""), "merchant recipient missing");
+  assert(opening.invoiceType == InvoiceType.DONATION || opening.amount > 0, "invoice amount invalid");
+}
+
+export circuit issueInvoice(
+  invoiceId: Bytes<32>,
+  invoiceType: InvoiceType,
+  expiresAt: Uint<64>
+): [] {
+  assert(!invoices.member(disclose(invoiceId)), "invoice already exists");
+  assert(expiresAt > sequence, "invoice deadline invalid");
+
+  const opening = invoiceOpening(invoiceId);
+  assert(invoiceCommitment(opening) == invoiceId, "invalid invoice opening");
+  assert(opening.invoiceType == invoiceType, "invoice type mismatch");
+  const merchantAuth = merchantAuthCommitment(invoiceId, merchantSecretKey());
+
+  invoices.insert(disclose(invoiceId), disclose(InvoiceState {
+    invoiceCommitment: invoiceId,
+    merchantAuthCommitment: disclose(merchantAuth),
+    invoiceType: invoiceType,
+    expiresAt: expiresAt,
+    version: 0 as Uint<64>,
+    status: InvoiceStatus.ACTIVE
+  }));
+  sequence.increment(1);
+}
+
+export circuit settleStandard(
+  invoiceId: Bytes<32>,
+  coin: QualifiedShieldedCoinInfo
+): [] {
+  assert(invoices.member(disclose(invoiceId)), "invoice not found");
+  const state = invoices.lookup(disclose(invoiceId));
+  assert(state.status == InvoiceStatus.ACTIVE, "invoice not active");
+  assert(state.invoiceType == InvoiceType.STANDARD, "invoice type invalid");
+  assert(sequence <= state.expiresAt, "invoice expired");
+
+  const opening = invoiceOpening(invoiceId);
+  assertInvoiceOpening(state, opening);
+  assert(coin.value >= opening.amount, "coin cannot cover invoice");
+  if (!isOpenTokenColor(opening.tokenColor)) {
+    assert(coin.color == opening.tokenColor, "wrong token color");
+  }
+
+  const merchant = left<ZswapCoinPublicKey, ContractAddress>(
+    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+  );
+  const result = sendShielded(disclose(coin), merchant, opening.amount);
+  if (result.change.is_some) {
+    const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+    sendImmediateShielded(result.change.value, caller, result.change.value.value);
+  }
+
+  const nonce = paymentNonce(invoiceId);
+  const nullifier = paymentNullifier(invoiceId, opening, nonce);
+  assert(!usedNullifiers.member(disclose(nullifier)), "payment already used");
+  usedNullifiers.insert(disclose(nullifier));
+  receiptCommitments.insert(disclose(payerReceiptCommitment(invoiceId, opening, nonce)));
+  receiptCommitments.insert(disclose(merchantReceiptCommitment(invoiceId, opening, nonce)));
+
+  invoices.insert(disclose(invoiceId), disclose(InvoiceState {
+    invoiceCommitment: state.invoiceCommitment,
+    merchantAuthCommitment: state.merchantAuthCommitment,
+    invoiceType: state.invoiceType,
+    expiresAt: state.expiresAt,
+    version: state.version + 1,
+    status: InvoiceStatus.PAID
+  }));
+  sequence.increment(1);
+}
+
+export circuit settleMultiPayment(
+  invoiceId: Bytes<32>,
+  coin: QualifiedShieldedCoinInfo
+): [] {
+  assert(invoices.member(disclose(invoiceId)), "invoice not found");
+  const state = invoices.lookup(disclose(invoiceId));
+  assert(state.status == InvoiceStatus.ACTIVE, "invoice not active");
+  assert(state.invoiceType == InvoiceType.MULTI_PAY, "invoice type invalid");
+  assert(sequence <= state.expiresAt, "invoice expired");
+
+  const opening = invoiceOpening(invoiceId);
+  assertInvoiceOpening(state, opening);
+  assert(coin.value >= opening.amount, "coin cannot cover invoice");
+  if (!isOpenTokenColor(opening.tokenColor)) {
+    assert(coin.color == opening.tokenColor, "wrong token color");
+  }
+
+  const merchant = left<ZswapCoinPublicKey, ContractAddress>(
+    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+  );
+  const result = sendShielded(disclose(coin), merchant, opening.amount);
+  if (result.change.is_some) {
+    const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+    sendImmediateShielded(result.change.value, caller, result.change.value.value);
+  }
+
+  const nonce = paymentNonce(invoiceId);
+  const nullifier = paymentNullifier(invoiceId, opening, nonce);
+  assert(!usedNullifiers.member(disclose(nullifier)), "payment already used");
+  usedNullifiers.insert(disclose(nullifier));
+  receiptCommitments.insert(disclose(payerReceiptCommitment(invoiceId, opening, nonce)));
+  receiptCommitments.insert(disclose(merchantReceiptCommitment(invoiceId, opening, nonce)));
+  sequence.increment(1);
+}
+
+export circuit acceptDonation(
+  invoiceId: Bytes<32>,
+  coin: QualifiedShieldedCoinInfo,
+  amount: Uint<128>
+): [] {
+  assert(invoices.member(disclose(invoiceId)), "invoice not found");
+  const state = invoices.lookup(disclose(invoiceId));
+  assert(state.status == InvoiceStatus.ACTIVE, "invoice not active");
+  assert(state.invoiceType == InvoiceType.DONATION, "invoice type invalid");
+  assert(sequence <= state.expiresAt, "invoice expired");
+
+  const opening = invoiceOpening(invoiceId);
+  assertInvoiceOpening(state, opening);
+  assert(amount > 0, "donation must be positive");
+  assert(coin.value >= amount, "coin cannot cover donation");
+  if (!isOpenTokenColor(opening.tokenColor)) {
+    assert(coin.color == opening.tokenColor, "wrong token color");
+  }
+
+  const merchant = left<ZswapCoinPublicKey, ContractAddress>(
+    ZswapCoinPublicKey { bytes: opening.merchantCoinPk }
+  );
+  const result = sendShielded(disclose(coin), merchant, amount);
+  if (result.change.is_some) {
+    const caller = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+    sendImmediateShielded(result.change.value, caller, result.change.value.value);
+  }
+
+  const nonce = paymentNonce(invoiceId);
+  const nullifier = paymentNullifier(invoiceId, opening, nonce);
+  assert(!usedNullifiers.member(disclose(nullifier)), "payment already used");
+  usedNullifiers.insert(disclose(nullifier));
+  receiptCommitments.insert(disclose(payerReceiptCommitment(invoiceId, opening, nonce)));
+  receiptCommitments.insert(disclose(merchantReceiptCommitment(invoiceId, opening, nonce)));
+  sequence.increment(1);
+}
+
+export circuit settleMulti(invoiceId: Bytes<32>): [] {
+  assert(invoices.member(disclose(invoiceId)), "invoice not found");
+  const state = invoices.lookup(disclose(invoiceId));
+  assert(state.status == InvoiceStatus.ACTIVE, "invoice not active");
+  assert(state.invoiceType == InvoiceType.MULTI_PAY, "invoice type invalid");
+  assert(state.merchantAuthCommitment == merchantAuthCommitment(invoiceId, merchantSecretKey()), "not the invoice merchant");
+
+  invoices.insert(disclose(invoiceId), disclose(InvoiceState {
+    invoiceCommitment: state.invoiceCommitment,
+    merchantAuthCommitment: state.merchantAuthCommitment,
+    invoiceType: state.invoiceType,
+    expiresAt: state.expiresAt,
+    version: state.version + 1,
+    status: InvoiceStatus.SETTLED
+  }));
+  sequence.increment(1);
+}
+
+export circuit cancelInvoice(invoiceId: Bytes<32>): [] {
+  assert(invoices.member(disclose(invoiceId)), "invoice not found");
+  const state = invoices.lookup(disclose(invoiceId));
+  assert(state.status == InvoiceStatus.ACTIVE, "invoice not active");
+  assert(state.merchantAuthCommitment == merchantAuthCommitment(invoiceId, merchantSecretKey()), "not the invoice merchant");
+
+  invoices.insert(disclose(invoiceId), disclose(InvoiceState {
+    invoiceCommitment: state.invoiceCommitment,
+    merchantAuthCommitment: state.merchantAuthCommitment,
+    invoiceType: state.invoiceType,
+    expiresAt: state.expiresAt,
+    version: state.version + 1,
+    status: InvoiceStatus.CANCELLED
+  }));
+  sequence.increment(1);
+}
+
+export circuit isSettled(invoiceId: Bytes<32>): Boolean {
+  if (invoices.member(disclose(invoiceId))) {
+    const status = invoices.lookup(disclose(invoiceId)).status;
+    return status == InvoiceStatus.PAID || status == InvoiceStatus.SETTLED || status == InvoiceStatus.REFUNDED;
+  }
+  return false;
+}
