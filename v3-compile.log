@@ -4,11 +4,51 @@
 
 Compiling 5 circuits:
 Compiling 5 circuits:
-Exception: veilpay3.compact line 193 char 49:
-  mismatch between actual type Uint<0..18446744073709551617> and declared type Uint<64> for field
-  version of struct InvoiceState<invoiceCommitment: Bytes<32>, merchantAuthCommitment: Bytes<32>,
-  invoiceType: Enum<InvoiceType, STANDARD, MULTI_PAY, DONATION>, expiresAt: Uint<64>, version:
-  Uint<64>, status: Enum<InvoiceStatus, ACTIVE, PAID, SETTLED, CANCELLED, REFUNDED>>
+Exception: veilpay3.compact line 95 char 3:
+  potential witness-value disclosure must be declared but is not:
+    witness value potentially disclosed:
+      the return value of witness receiptSecret at line 52 char 1
+    nature of the disclosure:
+      the value returned from exported circuit payerReceiptCommitment might disclose a hash of
+      the witness value
+    via this path through the program:
+      the argument to persistentHash at line 95 char 10
+Exception: veilpay3.compact line 180 char 18:
+  potential witness-value disclosure must be declared but is not:
+    witness value potentially disclosed:
+      the return value of witness invoiceOpening at line 51 char 1
+    nature of the disclosure:
+      the call to standard-library circuit sendShielded might disclose a link between a coin
+      spend and the coin with the commitment given by a hash of the witness value
+    via this path through the program:
+      the binding of opening at line 170 char 9
+      the argument to left at line 177 char 20
+      the binding of merchant at line 177 char 9
+      the second argument to sendShielded at line 180 char 18
+Exception: veilpay3.compact line 224 char 18:
+  potential witness-value disclosure must be declared but is not:
+    witness value potentially disclosed:
+      the return value of witness invoiceOpening at line 51 char 1
+    nature of the disclosure:
+      the call to standard-library circuit sendShielded might disclose a link between a coin
+      spend and the coin with the commitment given by a hash of the witness value
+    via this path through the program:
+      the binding of opening at line 214 char 9
+      the argument to left at line 221 char 20
+      the binding of merchant at line 221 char 9
+      the second argument to sendShielded at line 224 char 18
+Exception: veilpay3.compact line 261 char 18:
+  potential witness-value disclosure must be declared but is not:
+    witness value potentially disclosed:
+      the return value of witness invoiceOpening at line 51 char 1
+    nature of the disclosure:
+      the call to standard-library circuit sendShielded might disclose a link between a coin
+      spend and the coin with the commitment given by a hash of the witness value
+    via this path through the program:
+      the binding of opening at line 250 char 9
+      the argument to left at line 258 char 20
+      the binding of merchant at line 258 char 9
+      the second argument to sendShielded at line 261 char 18
 npm error Lifecycle script `compact` failed with error:
 npm error code 255
 npm error path /home/runner/work/veilpay/veilpay/contract
