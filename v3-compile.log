@@ -1,0 +1,83 @@
+
+> @veilpay/contract@0.1.0 compact
+> compact compile src/veilpay.compact ./src/managed/veilpay && compact compile src/veilpay2.compact ./src/managed/veilpay2 && compact compile src/veilpay3.compact ./src/managed/veilpay3
+
+Compiling 5 circuits:
+Compiling 5 circuits:
+Compiling 6 circuits:
+COMPACT_EXIT=0
+
+> @veilpay/contract@0.1.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+src/test/veilpay3.test.ts(177,50): error TS2353: Object literal may only specify known properties, and 'expiresAt' does not exist in type 'Partial<OpeningArgs>'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /home/runner/work/veilpay/veilpay/contract
+npm error workspace @veilpay/contract@0.1.0
+npm error location /home/runner/work/veilpay/veilpay/contract
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json --noEmit
+
+> @veilpay/contract@0.1.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/runner/work/veilpay/veilpay/contract[39m
+
+Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay/contract/index.js" points to missing source files
+Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay2/contract/index.js" points to missing source files
+Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay3/contract/index.js" points to missing source files
+ [32m✓[39m src/test/veilpay.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 419[2mms[22m[39m
+ [32m✓[39m src/test/veilpay2.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 545[2mms[22m[39m
+ [31m❯[39m src/test/veilpay3.test.ts [2m([22m[2m15 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 712[2mms[22m[39m
+     [32m✓[39m issues a standard invoice storing only commitments[32m 89[2mms[22m[39m
+[31m     [31m×[31m rejects an opening that does not match the issued terms[39m[32m 50[2mms[22m[39m
+     [32m✓[39m settles a standard invoice and moves the requested amount[32m 129[2mms[22m[39m
+     [32m✓[39m returns change to the payer when the coin exceeds the amount[32m 128[2mms[22m[39m
+     [32m✓[39m rejects a second settlement of the same standard invoice[32m 46[2mms[22m[39m
+     [32m✓[39m rejects a coin that cannot cover the invoice[32m 17[2mms[22m[39m
+     [32m✓[39m rejects the wrong token color when the invoice pins one[32m 17[2mms[22m[39m
+     [32m✓[39m rejects a settlement with no local opening[32m 16[2mms[22m[39m
+     [32m✓[39m accepts repeated multi-pay settlements until the merchant settles[32m 59[2mms[22m[39m
+     [32m✓[39m rejects a settlement of a multi-pay campaign as standard[32m 14[2mms[22m[39m
+     [32m✓[39m accepts variable donation amounts and returns change[32m 60[2mms[22m[39m
+     [32m✓[39m rejects a zero or uncovered donation[32m 20[2mms[22m[39m
+     [32m✓[39m rejects settlement after the deadline[32m 22[2mms[22m[39m
+     [32m✓[39m cancels an unpaid invoice and blocks later settlement[32m 24[2mms[22m[39m
+     [32m✓[39m rejects cancel from a different merchant key[32m 15[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/test/veilpay3.test.ts[2m > [22mVeilPay v3 contract (private invoices)[2m > [22mrejects an opening that does not match the issued terms
+[31m[1mAssertionError[22m: expected [Function] to throw an error[39m
+
+[32m- Expected:[39m
+null
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m src/test/veilpay3.test.ts:[2m54:7[22m[39m
+    [90m 52|[39m     [34mexpect[39m(() [33m=>[39m
+    [90m 53|[39m       sim[33m.[39m[34missueInvoice[39m(args)[33m,[39m
+    [90m 54|[39m     )[33m.[39m[34mtoThrow[39m([32m"opening amount mismatch"[39m)[33m;[39m
+    [90m   |[39m       [31m^[39m
+    [90m 55|[39m   })[33m;[39m
+    [90m 56|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m35 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 13:07:58
+[2m   Duration [22m 1.19s[2m (transform 552ms, setup 0ms, import 851ms, tests 1.68s, environment 1ms)[22m
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/runner/work/veilpay/veilpay/contract
+npm error workspace @veilpay/contract@0.1.0
+npm error location /home/runner/work/veilpay/veilpay/contract
+npm error command failed
+npm error command sh -c vitest run
