@@ -195,7 +195,7 @@ export circuit settleStandard(
     merchantAuthCommitment: state.merchantAuthCommitment,
     invoiceType: state.invoiceType,
     expiresAt: state.expiresAt,
-    version: state.version + 1,
+    version: (state.version + 1) as Uint<64>,
     status: InvoiceStatus.PAID
   }));
   sequence.increment(1);
@@ -285,7 +285,7 @@ export circuit settleMulti(invoiceId: Bytes<32>): [] {
     merchantAuthCommitment: state.merchantAuthCommitment,
     invoiceType: state.invoiceType,
     expiresAt: state.expiresAt,
-    version: state.version + 1,
+    version: (state.version + 1) as Uint<64>,
     status: InvoiceStatus.SETTLED
   }));
   sequence.increment(1);
@@ -302,7 +302,7 @@ export circuit cancelInvoice(invoiceId: Bytes<32>): [] {
     merchantAuthCommitment: state.merchantAuthCommitment,
     invoiceType: state.invoiceType,
     expiresAt: state.expiresAt,
-    version: state.version + 1,
+    version: (state.version + 1) as Uint<64>,
     status: InvoiceStatus.CANCELLED
   }));
   sequence.increment(1);
