@@ -1,0 +1,19 @@
+
+> @veilpay/contract@0.1.0 compact
+> compact compile src/veilpay.compact ./src/managed/veilpay && compact compile src/veilpay2.compact ./src/managed/veilpay2 && compact compile src/veilpay3.compact ./src/managed/veilpay3
+
+Compiling 5 circuits:
+Compiling 5 circuits:
+Exception: veilpay3.compact line 193 char 49:
+  mismatch between actual type Uint<0..18446744073709551617> and declared type Uint<64> for field
+  version of struct InvoiceState<invoiceCommitment: Bytes<32>, merchantAuthCommitment: Bytes<32>,
+  invoiceType: Enum<InvoiceType, STANDARD, MULTI_PAY, DONATION>, expiresAt: Uint<64>, version:
+  Uint<64>, status: Enum<InvoiceStatus, ACTIVE, PAID, SETTLED, CANCELLED, REFUNDED>>
+npm error Lifecycle script `compact` failed with error:
+npm error code 255
+npm error path /home/runner/work/veilpay/veilpay/contract
+npm error workspace @veilpay/contract@0.1.0
+npm error location /home/runner/work/veilpay/veilpay/contract
+npm error command failed
+npm error command sh -c compact compile src/veilpay.compact ./src/managed/veilpay && compact compile src/veilpay2.compact ./src/managed/veilpay2 && compact compile src/veilpay3.compact ./src/managed/veilpay3
+COMPACT_EXIT=255
