@@ -87,7 +87,7 @@ export circuit paymentNullifier(
   ]);
 }
 
-export circuit payerReceiptCommitment(
+circuit payerReceiptCommitment(
   invoiceId: Bytes<32>,
   opening: InvoiceOpening,
   nonce: Bytes<32>
