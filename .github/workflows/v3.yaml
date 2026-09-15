@@ -49,8 +49,8 @@ jobs:
           rm -f contract/src/managed/veilpay3/keys/*.prover 2>/dev/null || true
           git config user.name "veilpay-ci"
           git config user.email "ci@users.noreply.github.com"
-          git add -A v3-compile.log 2>/dev/null || true
-          git add -A contract/src/managed 2>/dev/null || true
+          git add -f v3-compile.log 2>/dev/null || true
+          git add -f contract/src/managed 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "nothing to publish"
           else
