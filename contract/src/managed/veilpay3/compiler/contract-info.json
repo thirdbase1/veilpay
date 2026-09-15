@@ -4,431 +4,26 @@
   "runtime-version": "0.16.0",
   "circuits": [
     {
-      "name": "merchantAuthCommitment",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "invoiceId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "secret",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "invoiceCommitment",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "opening",
-          "type": {
-            "type-name": "Struct",
-            "name": "InvoiceOpening",
-            "elements": [
-              {
-                "name": "amount",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              },
-              {
-                "name": "tokenColor",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "merchantCoinPk",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "invoiceType",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceType",
-                  "elements": [
-                    "STANDARD",
-                    "MULTI_PAY",
-                    "DONATION"
-                  ]
-                }
-              },
-              {
-                "name": "paymentSecret",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "salt",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              }
-            ]
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "paymentNullifier",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "invoiceId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "opening",
-          "type": {
-            "type-name": "Struct",
-            "name": "InvoiceOpening",
-            "elements": [
-              {
-                "name": "amount",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              },
-              {
-                "name": "tokenColor",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "merchantCoinPk",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "invoiceType",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceType",
-                  "elements": [
-                    "STANDARD",
-                    "MULTI_PAY",
-                    "DONATION"
-                  ]
-                }
-              },
-              {
-                "name": "paymentSecret",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "salt",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "nonce",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "merchantReceiptCommitment",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "invoiceId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        },
-        {
-          "name": "opening",
-          "type": {
-            "type-name": "Struct",
-            "name": "InvoiceOpening",
-            "elements": [
-              {
-                "name": "amount",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              },
-              {
-                "name": "tokenColor",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "merchantCoinPk",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "invoiceType",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceType",
-                  "elements": [
-                    "STANDARD",
-                    "MULTI_PAY",
-                    "DONATION"
-                  ]
-                }
-              },
-              {
-                "name": "paymentSecret",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "salt",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "nonce",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "isZero",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "a",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "isOpenTokenColor",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "a",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "assertInvoiceOpening",
-      "pure": true,
-      "proof": false,
-      "arguments": [
-        {
-          "name": "state",
-          "type": {
-            "type-name": "Struct",
-            "name": "InvoiceState",
-            "elements": [
-              {
-                "name": "invoiceCommitment",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "merchantAuthCommitment",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "invoiceType",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceType",
-                  "elements": [
-                    "STANDARD",
-                    "MULTI_PAY",
-                    "DONATION"
-                  ]
-                }
-              },
-              {
-                "name": "expiresAt",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 18446744073709551615
-                }
-              },
-              {
-                "name": "version",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 18446744073709551615
-                }
-              },
-              {
-                "name": "status",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceStatus",
-                  "elements": [
-                    "ACTIVE",
-                    "PAID",
-                    "SETTLED",
-                    "CANCELLED",
-                    "REFUNDED"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "opening",
-          "type": {
-            "type-name": "Struct",
-            "name": "InvoiceOpening",
-            "elements": [
-              {
-                "name": "amount",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              },
-              {
-                "name": "tokenColor",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "merchantCoinPk",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "invoiceType",
-                "type": {
-                  "type-name": "Enum",
-                  "name": "InvoiceType",
-                  "elements": [
-                    "STANDARD",
-                    "MULTI_PAY",
-                    "DONATION"
-                  ]
-                }
-              },
-              {
-                "name": "paymentSecret",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "salt",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              }
-            ]
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "issueInvoice",
       "pure": false,
       "proof": true,
       "arguments": [
         {
-          "name": "invoiceId",
+          "name": "amount",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 340282366920938463463374607431768211455
+          }
+        },
+        {
+          "name": "tokenColor",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "merchantCoinPk",
           "type": {
             "type-name": "Bytes",
             "length": 32
@@ -455,9 +50,8 @@
         }
       ],
       "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
       }
     },
     {
@@ -468,8 +62,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         },
         {
@@ -511,8 +105,84 @@
         }
       ],
       "result-type": {
-        "type-name": "Tuple",
-        "types": [
+        "type-name": "Struct",
+        "name": "ShieldedSendResult",
+        "elements": [
+          {
+            "name": "change",
+            "type": {
+              "type-name": "Struct",
+              "name": "Maybe",
+              "elements": [
+                {
+                  "name": "is_some",
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Struct",
+                    "name": "ShieldedCoinInfo",
+                    "elements": [
+                      {
+                        "name": "nonce",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "color",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 340282366920938463463374607431768211455
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "sent",
+            "type": {
+              "type-name": "Struct",
+              "name": "ShieldedCoinInfo",
+              "elements": [
+                {
+                  "name": "nonce",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "color",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Uint",
+                    "maxval": 340282366920938463463374607431768211455
+                  }
+                }
+              ]
+            }
+          }
         ]
       }
     },
@@ -524,8 +194,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         },
         {
@@ -567,8 +237,84 @@
         }
       ],
       "result-type": {
-        "type-name": "Tuple",
-        "types": [
+        "type-name": "Struct",
+        "name": "ShieldedSendResult",
+        "elements": [
+          {
+            "name": "change",
+            "type": {
+              "type-name": "Struct",
+              "name": "Maybe",
+              "elements": [
+                {
+                  "name": "is_some",
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Struct",
+                    "name": "ShieldedCoinInfo",
+                    "elements": [
+                      {
+                        "name": "nonce",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "color",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 340282366920938463463374607431768211455
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "sent",
+            "type": {
+              "type-name": "Struct",
+              "name": "ShieldedCoinInfo",
+              "elements": [
+                {
+                  "name": "nonce",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "color",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Uint",
+                    "maxval": 340282366920938463463374607431768211455
+                  }
+                }
+              ]
+            }
+          }
         ]
       }
     },
@@ -580,8 +326,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         },
         {
@@ -630,8 +376,84 @@
         }
       ],
       "result-type": {
-        "type-name": "Tuple",
-        "types": [
+        "type-name": "Struct",
+        "name": "ShieldedSendResult",
+        "elements": [
+          {
+            "name": "change",
+            "type": {
+              "type-name": "Struct",
+              "name": "Maybe",
+              "elements": [
+                {
+                  "name": "is_some",
+                  "type": {
+                    "type-name": "Boolean"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Struct",
+                    "name": "ShieldedCoinInfo",
+                    "elements": [
+                      {
+                        "name": "nonce",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "color",
+                        "type": {
+                          "type-name": "Bytes",
+                          "length": 32
+                        }
+                      },
+                      {
+                        "name": "value",
+                        "type": {
+                          "type-name": "Uint",
+                          "maxval": 340282366920938463463374607431768211455
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "sent",
+            "type": {
+              "type-name": "Struct",
+              "name": "ShieldedCoinInfo",
+              "elements": [
+                {
+                  "name": "nonce",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "color",
+                  "type": {
+                    "type-name": "Bytes",
+                    "length": 32
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "type-name": "Uint",
+                    "maxval": 340282366920938463463374607431768211455
+                  }
+                }
+              ]
+            }
+          }
         ]
       }
     },
@@ -643,8 +465,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         }
       ],
@@ -662,8 +484,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         }
       ],
@@ -671,23 +493,6 @@
         "type-name": "Tuple",
         "types": [
         ]
-      }
-    },
-    {
-      "name": "isSettled",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-        {
-          "name": "invoiceId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result-type": {
-        "type-name": "Boolean"
       }
     }
   ],
@@ -707,8 +512,8 @@
         {
           "name": "invoiceId",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
           }
         }
       ],
@@ -774,22 +579,6 @@
         "type-name": "Bytes",
         "length": 32
       }
-    },
-    {
-      "name": "paymentNonce",
-      "arguments": [
-        {
-          "name": "invoiceId",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
-        }
-      ],
-      "result type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
     }
   ],
   "contracts": [
@@ -807,22 +596,22 @@
       "exported": true,
       "storage": "Map",
       "key": {
-        "type-name": "Bytes",
-        "length": 32
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
       },
       "value": {
         "type-name": "Struct",
         "name": "InvoiceState",
         "elements": [
           {
-            "name": "invoiceCommitment",
+            "name": "commitment",
             "type": {
               "type-name": "Bytes",
               "length": 32
             }
           },
           {
-            "name": "merchantAuthCommitment",
+            "name": "merchantAuth",
             "type": {
               "type-name": "Bytes",
               "length": 32
@@ -848,13 +637,6 @@
             }
           },
           {
-            "name": "version",
-            "type": {
-              "type-name": "Uint",
-              "maxval": 18446744073709551615
-            }
-          },
-          {
             "name": "status",
             "type": {
               "type-name": "Enum",
@@ -863,8 +645,7 @@
                 "ACTIVE",
                 "PAID",
                 "SETTLED",
-                "CANCELLED",
-                "REFUNDED"
+                "CANCELLED"
               ]
             }
           }
@@ -872,21 +653,15 @@
       }
     },
     {
-      "name": "usedNullifiers",
+      "name": "receipts",
       "index": 2,
       "exported": true,
-      "storage": "Set",
-      "type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
-      "name": "receiptCommitments",
-      "index": 3,
-      "exported": true,
-      "storage": "Set",
-      "type": {
+      "storage": "Map",
+      "key": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      },
+      "value": {
         "type-name": "Bytes",
         "length": 32
       }

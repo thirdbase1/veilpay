@@ -4,12 +4,20 @@
 
 Compiling 5 circuits:
 Compiling 5 circuits:
-Compiling 7 circuits:
+Compiling 6 circuits:
 COMPACT_EXIT=0
 
 > @veilpay/contract@0.1.0 typecheck
 > tsc -p tsconfig.json --noEmit
 
+src/test/veilpay3.test.ts(177,50): error TS2353: Object literal may only specify known properties, and 'expiresAt' does not exist in type 'Partial<OpeningArgs>'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /home/runner/work/veilpay/veilpay/contract
+npm error workspace @veilpay/contract@0.1.0
+npm error location /home/runner/work/veilpay/veilpay/contract
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json --noEmit
 
 > @veilpay/contract@0.1.0 test
 > vitest run
@@ -17,69 +25,54 @@ COMPACT_EXIT=0
 
 [1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/runner/work/veilpay/veilpay/contract[39m
 
-Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay3/contract/index.js" points to missing source files
-Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay2/contract/index.js" points to missing source files
 Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay/contract/index.js" points to missing source files
- [32m✓[39m src/test/veilpay.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 329[2mms[22m[39m
- [32m✓[39m src/test/veilpay2.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 381[2mms[22m[39m
- [31m❯[39m src/test/veilpay3.test.ts [2m([22m[2m13 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 526[2mms[22m[39m
-     [32m✓[39m issues a standard invoice storing only commitments[32m 64[2mms[22m[39m
-[31m     [31m×[31m settles a standard invoice and moves the requested amount[39m[32m 100[2mms[22m[39m
-[31m     [31m×[31m returns change to the payer when the coin exceeds the amount[39m[32m 109[2mms[22m[39m
-     [32m✓[39m rejects a second settlement of the same standard invoice[32m 38[2mms[22m[39m
-     [32m✓[39m rejects a coin that cannot cover the invoice[32m 15[2mms[22m[39m
-     [32m✓[39m rejects the wrong token color when the invoice pins one[32m 17[2mms[22m[39m
-     [32m✓[39m rejects a settlement whose opening does not match the commitment[32m 15[2mms[22m[39m
-     [32m✓[39m accepts repeated multi-pay settlements until the merchant settles[32m 63[2mms[22m[39m
-[31m     [31m×[31m accepts variable donation amounts and returns change[39m[32m 38[2mms[22m[39m
+Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay2/contract/index.js" points to missing source files
+Sourcemap for "/home/runner/work/veilpay/veilpay/contract/src/managed/veilpay3/contract/index.js" points to missing source files
+ [32m✓[39m src/test/veilpay.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 426[2mms[22m[39m
+ [32m✓[39m src/test/veilpay2.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 509[2mms[22m[39m
+ [31m❯[39m src/test/veilpay3.test.ts [2m([22m[2m15 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 669[2mms[22m[39m
+     [32m✓[39m issues a standard invoice storing only commitments[32m 88[2mms[22m[39m
+[31m     [31m×[31m rejects an opening that does not match the issued terms[39m[32m 54[2mms[22m[39m
+     [32m✓[39m settles a standard invoice and moves the requested amount[32m 132[2mms[22m[39m
+     [32m✓[39m returns change to the payer when the coin exceeds the amount[32m 116[2mms[22m[39m
+     [32m✓[39m rejects a second settlement of the same standard invoice[32m 32[2mms[22m[39m
+     [32m✓[39m rejects a coin that cannot cover the invoice[32m 18[2mms[22m[39m
+     [32m✓[39m rejects the wrong token color when the invoice pins one[32m 16[2mms[22m[39m
+     [32m✓[39m rejects a settlement with no local opening[32m 15[2mms[22m[39m
+     [32m✓[39m accepts repeated multi-pay settlements until the merchant settles[32m 52[2mms[22m[39m
+     [32m✓[39m rejects a settlement of a multi-pay campaign as standard[32m 15[2mms[22m[39m
+     [32m✓[39m accepts variable donation amounts and returns change[32m 54[2mms[22m[39m
      [32m✓[39m rejects a zero or uncovered donation[32m 17[2mms[22m[39m
-     [32m✓[39m rejects settlement after the deadline[32m 18[2mms[22m[39m
-     [32m✓[39m cancels an unpaid invoice and blocks later settlement[32m 18[2mms[22m[39m
-     [32m✓[39m rejects a mismatched invoice type at settlement[32m 13[2mms[22m[39m
+     [32m✓[39m rejects settlement after the deadline[32m 19[2mms[22m[39m
+     [32m✓[39m cancels an unpaid invoice and blocks later settlement[32m 23[2mms[22m[39m
+     [32m✓[39m rejects cancel from a different merchant key[32m 14[2mms[22m[39m
 
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
 
-[41m[1m FAIL [22m[49m src/test/veilpay3.test.ts[2m > [22mVeilPay v3 contract (private invoices)[2m > [22msettles a standard invoice and moves the requested amount
-[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'value')[39m
-[36m [2m❯[22m src/test/veilpay3.test.ts:[2m56:24[22m[39m
-    [90m 54|[39m
-    [90m 55|[39m     expect(ledger.invoices.lookup(invoiceId).status).toEqual(InvoiceSt…
-    [90m 56|[39m     [34mexpect[39m(result[33m.[39msent[33m.[39mvalue)[33m.[39m[34mtoEqual[39m([33mAMOUNT[39m)[33m;[39m
-    [90m   |[39m                        [31m^[39m
-    [90m 57|[39m     [34mexpect[39m(result[33m.[39mchange[33m.[39mis_some)[33m.[39m[34mtoEqual[39m([35mfalse[39m)[33m;[39m
-    [90m 58|[39m     [34mexpect[39m(ledger[33m.[39musedNullifiers[33m.[39m[34msize[39m())[33m.[39m[34mtoEqual[39m([34m1n[39m)[33m;[39m
+[41m[1m FAIL [22m[49m src/test/veilpay3.test.ts[2m > [22mVeilPay v3 contract (private invoices)[2m > [22mrejects an opening that does not match the issued terms
+[31m[1mAssertionError[22m: expected [Function] to throw an error[39m
 
-[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+[32m- Expected:[39m
+null
 
-[41m[1m FAIL [22m[49m src/test/veilpay3.test.ts[2m > [22mVeilPay v3 contract (private invoices)[2m > [22mreturns change to the payer when the coin exceeds the amount
-[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'value')[39m
-[36m [2m❯[22m src/test/veilpay3.test.ts:[2m80:24[22m[39m
-    [90m 78|[39m     )[33m;[39m
-    [90m 79|[39m
-    [90m 80|[39m     [34mexpect[39m(result[33m.[39msent[33m.[39mvalue)[33m.[39m[34mtoEqual[39m([33mAMOUNT[39m)[33m;[39m
-    [90m   |[39m                        [31m^[39m
-    [90m 81|[39m     [34mexpect[39m(result[33m.[39mchange[33m.[39mis_some)[33m.[39m[34mtoEqual[39m([35mtrue[39m)[33m;[39m
-    [90m 82|[39m     [34mexpect[39m(result[33m.[39mchange[33m.[39mvalue[33m?.[39mvalue)[33m.[39m[34mtoEqual[39m([34m400n[39m)[33m;[39m
+[31m+ Received:[39m
+undefined
 
-[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+[36m [2m❯[22m src/test/veilpay3.test.ts:[2m54:7[22m[39m
+    [90m 52|[39m     [34mexpect[39m(() [33m=>[39m
+    [90m 53|[39m       sim[33m.[39m[34missueInvoice[39m(args)[33m,[39m
+    [90m 54|[39m     )[33m.[39m[34mtoThrow[39m([32m"opening amount mismatch"[39m)[33m;[39m
+    [90m   |[39m       [31m^[39m
+    [90m 55|[39m   })[33m;[39m
+    [90m 56|[39m
 
-[41m[1m FAIL [22m[49m src/test/veilpay3.test.ts[2m > [22mVeilPay v3 contract (private invoices)[2m > [22maccepts variable donation amounts and returns change
-[31m[1mTypeError[22m: Cannot read properties of undefined (reading 'value')[39m
-[36m [2m❯[22m src/test/veilpay3.test.ts:[2m214:24[22m[39m
-    [90m212|[39m     [35mconst[39m id [33m=[39m [34minvoiceIdHex[39m(invoiceId)[33m;[39m
-    [90m213|[39m     const { result } = sim.acceptDonation(id, opening, qualifiedCoin(5…
-    [90m214|[39m     [34mexpect[39m(result[33m.[39msent[33m.[39mvalue)[33m.[39m[34mtoEqual[39m([34m200n[39m)[33m;[39m
-    [90m   |[39m                        [31m^[39m
-    [90m215|[39m     [34mexpect[39m(result[33m.[39mchange[33m.[39mis_some)[33m.[39m[34mtoEqual[39m([35mtrue[39m)[33m;[39m
-    [90m216|[39m     [34mexpect[39m(result[33m.[39mchange[33m.[39mvalue[33m?.[39mvalue)[33m.[39m[34mtoEqual[39m([34m4800n[39m)[33m;[39m
-
-[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
 
 
 [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
-[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m31 passed[39m[22m[90m (34)[39m
-[2m   Start at [22m 11:10:11
-[2m   Duration [22m 917ms[2m (transform 538ms, setup 0ms, import 752ms, tests 1.24s, environment 0ms)[22m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m35 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 12:24:14
+[2m   Duration [22m 1.12s[2m (transform 521ms, setup 0ms, import 831ms, tests 1.60s, environment 0ms)[22m
 
 npm error Lifecycle script `test` failed with error:
 npm error code 1
