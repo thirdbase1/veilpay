@@ -8,7 +8,6 @@ import {
 import {
   Contract,
   InvoiceType,
-  pureCircuits,
   type InvoiceOpening,
   type Ledger,
   ledger,
@@ -17,17 +16,15 @@ import {
   type VeilPay3PrivateState,
   createVeilPay3PrivateState,
   withInvoiceOpening3,
-  withPaymentNonce3,
+  witnesses3,
 } from "../witnesses3.js";
-import { witnesses3 } from "../witnesses3.js";
 
 /*
  * In-memory testbed for the v3 (private invoice) contract.
  *
  * Coins are consumed locally the way the official Midnight token-transfers
  * example tests do it: a ShieldedCoinInfo is constructed by hand and
- * "qualified" with an mt_index, which is sufficient for circuit execution
- * (Merkle proof checking happens at proof time on-chain, not in the simulator).
+ * "qualified" with an mt_index, which is sufficient for circuit execution.
  */
 
 export type EncodedCoinInfo = {
@@ -57,6 +54,15 @@ const invoiceTypeCode = (value: "standard" | "multipay" | "donation"): InvoiceTy
       ? InvoiceType.MULTI_PAY
       : InvoiceType.DONATION;
 
+export type OpeningArgs = {
+  amount: bigint;
+  tokenColor: Uint8Array;
+  merchantCoinPk: Uint8Array;
+  invoiceType: "standard" | "multipay" | "donation";
+  paymentSecret: Uint8Array;
+  salt: Uint8Array;
+};
+
 export class VeilPay3Simulator {
   readonly contract: Contract<VeilPay3PrivateState>;
   circuitContext: CircuitContext<VeilPay3PrivateState>;
@@ -64,30 +70,19 @@ export class VeilPay3Simulator {
   constructor(privateState: VeilPay3PrivateState) {
     this.contract = new Contract<VeilPay3PrivateState>(witnesses3);
     const { currentPrivateState, currentContractState, currentZswapLocalState } =
-      this.contract.initialState(
-        createConstructorContext(privateState, "0".repeat(64)),
-      );
+      this.contract.initialState(createConstructorContext(privateState, "0".repeat(64)));
     this.circuitContext = {
       currentPrivateState,
       currentZswapLocalState,
       costModel: CostModel.initialCostModel(),
-      currentQueryContext: new QueryContext(
-        currentContractState.data,
-        sampleContractAddress(),
-      ),
+      currentQueryContext: new QueryContext(currentContractState.data, sampleContractAddress()),
     };
   }
 
-  static deploy(
-    merchantSecretKey: Uint8Array,
-    receiptSecret: Uint8Array,
-  ): VeilPay3Simulator {
-    return new VeilPay3Simulator(
-      createVeilPay3PrivateState(merchantSecretKey, receiptSecret),
-    );
+  static deploy(merchantSecretKey: Uint8Array, receiptSecret: Uint8Array): VeilPay3Simulator {
+    return new VeilPay3Simulator(createVeilPay3PrivateState(merchantSecretKey, receiptSecret));
   }
 
-  /** The zswap key that ownPublicKey() will see inside circuits (the payer). */
   setPayerCoinPublicKey(pk: Uint8Array): void {
     this.circuitContext.currentZswapLocalState = {
       ...this.circuitContext.currentZswapLocalState,
@@ -99,11 +94,6 @@ export class VeilPay3Simulator {
     return ledger(this.circuitContext.currentQueryContext.state);
   }
 
-  getZswapOutputs(): { coinInfo: EncodedCoinInfo; recipient: unknown }[] {
-    return this.circuitContext.currentZswapLocalState
-      .outputs as unknown as { coinInfo: EncodedCoinInfo; recipient: unknown }[];
-  }
-
   getPrivateState(): VeilPay3PrivateState {
     return this.circuitContext.currentPrivateState;
   }
@@ -112,15 +102,8 @@ export class VeilPay3Simulator {
     this.circuitContext.currentPrivateState = state;
   }
 
-  buildOpening(args: {
-    amount: bigint;
-    tokenColor: Uint8Array;
-    merchantCoinPk: Uint8Array;
-    invoiceType: "standard" | "multipay" | "donation";
-    paymentSecret: Uint8Array;
-    salt: Uint8Array;
-  }): { opening: InvoiceOpening; invoiceId: Uint8Array } {
-    const opening: InvoiceOpening = {
+  buildOpening(args: OpeningArgs): InvoiceOpening {
+    return {
       amount: args.amount,
       tokenColor: args.tokenColor,
       merchantCoinPk: args.merchantCoinPk,
@@ -128,92 +111,56 @@ export class VeilPay3Simulator {
       paymentSecret: args.paymentSecret,
       salt: args.salt,
     };
-    return { opening, invoiceId: pureCircuits.invoiceCommitment(opening) };
   }
 
-  issueInvoice(args: {
-    amount: bigint;
-    tokenColor: Uint8Array;
-    merchantCoinPk: Uint8Array;
-    invoiceType: "standard" | "multipay" | "donation";
-    paymentSecret: Uint8Array;
-    salt: Uint8Array;
-    expiresAt: bigint;
-  }): { ledger: Ledger; invoiceId: Uint8Array; opening: InvoiceOpening } {
-    const { opening, invoiceId } = this.buildOpening(args);
-    const invoiceIdHex = Buffer.from(invoiceId).toString("hex");
+  /** Stage the opening for the next invoice id and issue it on the ledger. */
+  issueInvoice(
+    args: OpeningArgs & { expiresAt: bigint },
+  ): { ledger: Ledger; invoiceId: bigint; opening: InvoiceOpening } {
+    const nextId = this.getLedger().sequence + 1n;
+    const opening = this.buildOpening(args);
     this.circuitContext.currentPrivateState = withInvoiceOpening3(
       this.circuitContext.currentPrivateState,
-      invoiceIdHex,
+      nextId,
       opening,
     );
-    const { context } = this.contract.impureCircuits.issueInvoice(
+    const { context, result } = this.contract.impureCircuits.issueInvoice(
       this.circuitContext,
-      invoiceId,
+      args.amount,
+      args.tokenColor,
+      args.merchantCoinPk,
       invoiceTypeCode(args.invoiceType),
       args.expiresAt,
     );
     this.circuitContext = context;
     return {
       ledger: ledger(this.circuitContext.currentQueryContext.state),
-      invoiceId,
+      invoiceId: result as bigint,
       opening,
     };
   }
 
-  private stagePayment(invoiceIdHex: string, opening: InvoiceOpening): Uint8Array {
-    const invoiceId = new Uint8Array(Buffer.from(invoiceIdHex, "hex"));
-    this.circuitContext.currentPrivateState = withPaymentNonce3(
-      withInvoiceOpening3(this.circuitContext.currentPrivateState, invoiceIdHex, opening),
-      invoiceIdHex,
-      globalThis.crypto.getRandomValues(new Uint8Array(32)),
-    );
-    return invoiceId;
-  }
-
-  settleStandard(
-    invoiceIdHex: string,
-    opening: InvoiceOpening,
-    coin: EncodedQualifiedCoin,
-  ): { ledger: Ledger; result: EncodedSendResult } {
-    const invoiceId = this.stagePayment(invoiceIdHex, opening);
+  settleStandard(invoiceId: bigint, coin: EncodedQualifiedCoin): EncodedSendResult {
     const { context, result } = this.contract.impureCircuits.settleStandard(
       this.circuitContext,
       invoiceId,
       coin as never,
     );
     this.circuitContext = context;
-    return {
-      ledger: ledger(this.circuitContext.currentQueryContext.state),
-      result: result as unknown as EncodedSendResult,
-    };
+    return result as unknown as EncodedSendResult;
   }
 
-  settleMultiPayment(
-    invoiceIdHex: string,
-    opening: InvoiceOpening,
-    coin: EncodedQualifiedCoin,
-  ): { ledger: Ledger; result: EncodedSendResult } {
-    const invoiceId = this.stagePayment(invoiceIdHex, opening);
+  settleMultiPayment(invoiceId: bigint, coin: EncodedQualifiedCoin): EncodedSendResult {
     const { context, result } = this.contract.impureCircuits.settleMultiPayment(
       this.circuitContext,
       invoiceId,
       coin as never,
     );
     this.circuitContext = context;
-    return {
-      ledger: ledger(this.circuitContext.currentQueryContext.state),
-      result: result as unknown as EncodedSendResult,
-    };
+    return result as unknown as EncodedSendResult;
   }
 
-  acceptDonation(
-    invoiceIdHex: string,
-    opening: InvoiceOpening,
-    coin: EncodedQualifiedCoin,
-    amount: bigint,
-  ): { ledger: Ledger; result: EncodedSendResult } {
-    const invoiceId = this.stagePayment(invoiceIdHex, opening);
+  acceptDonation(invoiceId: bigint, coin: EncodedQualifiedCoin, amount: bigint): EncodedSendResult {
     const { context, result } = this.contract.impureCircuits.acceptDonation(
       this.circuitContext,
       invoiceId,
@@ -221,23 +168,16 @@ export class VeilPay3Simulator {
       amount,
     );
     this.circuitContext = context;
-    return {
-      ledger: ledger(this.circuitContext.currentQueryContext.state),
-      result: result as unknown as EncodedSendResult,
-    };
+    return result as unknown as EncodedSendResult;
   }
 
-  settleMulti(invoiceIdHex: string): Ledger {
-    const invoiceId = new Uint8Array(Buffer.from(invoiceIdHex, "hex"));
-    this.circuitContext = this.contract.impureCircuits.settleMulti(
-      this.circuitContext,
-      invoiceId,
-    ).context;
+  settleMulti(invoiceId: bigint): Ledger {
+    this.circuitContext = this.contract.impureCircuits.settleMulti(this.circuitContext, invoiceId)
+      .context;
     return ledger(this.circuitContext.currentQueryContext.state);
   }
 
-  cancelInvoice(invoiceIdHex: string): Ledger {
-    const invoiceId = new Uint8Array(Buffer.from(invoiceIdHex, "hex"));
+  cancelInvoice(invoiceId: bigint): Ledger {
     this.circuitContext = this.contract.impureCircuits.cancelInvoice(
       this.circuitContext,
       invoiceId,

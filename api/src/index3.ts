@@ -4,7 +4,7 @@
  * v2 (index2.ts) keeps the amount, token color, and merchant coin key in
  * public ledger state. v3 stores only the invoice commitment and lifecycle
  * metadata publicly; amount, token color, recipient coin key, invoice type,
- * payment secret, and salt travel through private witnesses.
+ * payment secret and salt travel through private witnesses.
  *
  * @packageDocumentation
  */
@@ -32,7 +32,6 @@ import {
   type VeilPay3PrivateState,
   createVeilPay3PrivateState,
   withInvoiceOpening3,
-  withPaymentNonce3,
 } from '../../contract/src/witnesses3.js';
 
 /** A shielded coin ready to be spent in a v3 settlement circuit (zswap UTXO). */
@@ -46,19 +45,26 @@ export type SpendableCoin = {
 type VeilPay3ContractType = VeilPay3Generated.Contract<VeilPay3PrivateState>;
 export type DeployedVeilPay3Contract = FoundContract<VeilPay3ContractType>;
 
-export const CompiledVeilPay3ContractContract = CompiledContract.make(
-  'VeilPay3',
-  VeilPay3Generated.Contract<VeilPay3PrivateState>,
-).pipe(CompiledContract.withWitnesses(witnesses3Module.witnesses3));
+export const CompiledVeilPay3ContractContract = CompiledContract.make<
+  VeilPay3Generated.Contract<VeilPay3PrivateState>
+>('VeilPay3', VeilPay3Generated.Contract<VeilPay3PrivateState>).pipe(
+  CompiledContract.withWitnesses(witnesses3Module.witnesses3),
+  CompiledContract.withCompiledFileAssets('./managed/veilpay3'),
+);
 
-export type InvoiceOpeningValue = VeilPay3Generated.InvoiceOpening;
+export type InvoiceOpeningValue = witnesses3Module.InvoiceOpening;
 export type InvoiceTypeName = 'standard' | 'multipay' | 'donation';
 
-const INVOICE_TYPE_CODES: Record<InvoiceTypeName, VeilPay3Generated.InvoiceType> = {
+const INVOICE_TYPE_CODES = {
   standard: VeilPay3Generated.InvoiceType.STANDARD,
   multipay: VeilPay3Generated.InvoiceType.MULTI_PAY,
   donation: VeilPay3Generated.InvoiceType.DONATION,
-};
+} as const;
+
+const INVOICE_TYPE_NAMES: InvoiceTypeName[] = ['standard', 'multipay', 'donation'];
+
+export const invoiceTypeName = (code: number): InvoiceTypeName =>
+  INVOICE_TYPE_NAMES[code] ?? 'standard';
 
 const toQualified = (coin: SpendableCoin) => ({
   nonce: coin.nonce,
@@ -67,19 +73,14 @@ const toQualified = (coin: SpendableCoin) => ({
   mt_index: coin.mtIndex,
 });
 
-const hexToBytes = (value: string): Uint8Array =>
-  new Uint8Array(Buffer.from(value.replace(/^0x/, ''), 'hex'));
-
-const bytesToHex = (value: Uint8Array): string => toHex(value);
-
 /**
  * An API for a deployed VeilPay v3 contract.
  *
  * @remarks
  * Private state holds the invoice openings the participant is allowed to see.
  * The merchant holds the openings for invoices it issued; the payer holds the
- * opening it decrypted from the checkout link. `settle*` methods stage a fresh
- * payment nonce so multi-pay and donation payments each get a unique nullifier.
+ * opening it decrypted from the checkout link. Only the commitment and the
+ * lifecycle ever reach the public ledger.
  */
 export class VeilPay3API {
   private constructor(
@@ -101,18 +102,16 @@ export class VeilPay3API {
       ],
       (l, privateState) => {
         const openings = privateState?.invoiceOpenings ?? {};
-        return Object.keys(openings).map((invoiceId) => {
-          const state = l.invoices.member(hexToBytes(invoiceId))
-            ? l.invoices.lookup(hexToBytes(invoiceId))
-            : null;
+        return Object.keys(openings).map((key) => {
+          const id = BigInt(key);
+          const state = l.invoices.member(id) ? l.invoices.lookup(id) : null;
           return {
-            invoiceId,
-            opening: openings[invoiceId],
-            status: state?.status ?? null,
-            version: state?.version ?? 0n,
-            expiresAt: state?.expiresAt ?? 0n,
-            hasReceipt: false,
-          };
+            invoiceId: key,
+            opening: openings[key],
+            status: state ? Number(state.status) : null,
+            expiresAt: state ? state.expiresAt : 0n,
+            hasReceipt: l.receipts.member(id),
+          } satisfies Invoice3View;
         });
       },
     );
@@ -125,13 +124,28 @@ export class VeilPay3API {
     const existing = (await this.providers.privateStateProvider.get(
       veilPay3PrivateStateKey,
     )) as VeilPay3PrivateState | undefined;
-    return (
-      existing ??
-      createVeilPay3PrivateState(utils.randomBytes(32), utils.randomBytes(32))
+    return existing ?? createVeilPay3PrivateState(utils.randomBytes(32), utils.randomBytes(32));
+  }
+
+  /** Read the current ledger sequence; the next invoice id is sequence + 1. */
+  async nextInvoiceId(): Promise<bigint> {
+    const state = await this.providers.publicDataProvider.queryContractState(
+      this.deployedContractAddress,
+    );
+    if (!state) return 1n;
+    return VeilPay3Generated.ledger(state.data).sequence + 1n;
+  }
+
+  /** Stage an invoice opening in local private state (never leaves the device). */
+  async stageOpening(invoiceId: bigint | string, opening: InvoiceOpeningValue): Promise<void> {
+    const state = await this.privateState();
+    await this.providers.privateStateProvider.set(
+      veilPay3PrivateStateKey,
+      withInvoiceOpening3(state, invoiceId, opening),
     );
   }
 
-  /** Build the opening and its commitment without touching the chain. */
+  /** Build an opening locally from plain invoice terms. */
   buildOpening(args: {
     amount: bigint;
     tokenColor: Uint8Array;
@@ -139,19 +153,21 @@ export class VeilPay3API {
     invoiceType: InvoiceTypeName;
     paymentSecret?: Uint8Array;
     salt?: Uint8Array;
-  }): { opening: InvoiceOpeningValue; invoiceId: Uint8Array; paymentSecret: Uint8Array; salt: Uint8Array } {
+  }): { opening: InvoiceOpeningValue; paymentSecret: Uint8Array; salt: Uint8Array } {
     const paymentSecret = args.paymentSecret ?? utils.randomBytes(32);
     const salt = args.salt ?? utils.randomBytes(32);
-    const opening: InvoiceOpeningValue = {
-      amount: args.amount,
-      tokenColor: args.tokenColor,
-      merchantCoinPk: args.merchantCoinPk,
-      invoiceType: INVOICE_TYPE_CODES[args.invoiceType],
+    return {
+      opening: {
+        amount: args.amount,
+        tokenColor: args.tokenColor,
+        merchantCoinPk: args.merchantCoinPk,
+        invoiceType: INVOICE_TYPE_CODES[args.invoiceType],
+        paymentSecret,
+        salt,
+      },
       paymentSecret,
       salt,
     };
-    const invoiceId = VeilPay3.pureCircuits.invoiceCommitment(opening);
-    return { opening, invoiceId, paymentSecret, salt };
   }
 
   /** Merchant issues a private invoice; only the commitment reaches the ledger. */
@@ -172,94 +188,77 @@ export class VeilPay3API {
     expiresAt: string;
     invoiceType: InvoiceTypeName;
   }> {
-    const { opening, invoiceId, paymentSecret, salt } = this.buildOpening(args);
-    const invoiceIdHex = bytesToHex(invoiceId);
-    this.logger?.info(`issuing v3 invoice ${invoiceIdHex}`);
+    const { opening, paymentSecret, salt } = this.buildOpening(args);
+    const nextId = await this.nextInvoiceId();
+    await this.stageOpening(nextId, opening);
+    this.logger?.info(`issuing v3 invoice #${nextId}`);
 
-    const state = await this.privateState();
-    await this.providers.privateStateProvider.set(
-      veilPay3PrivateStateKey,
-      withInvoiceOpening3(state, invoiceIdHex, opening),
-    );
-
-    await this.deployedContract.callTx.issueInvoice(
-      invoiceId,
+    const txData = await this.deployedContract.callTx.issueInvoice(
+      opening.amount,
+      opening.tokenColor,
+      opening.merchantCoinPk,
       INVOICE_TYPE_CODES[args.invoiceType],
       args.expiresAt,
     );
+    const invoiceId = (txData.private.result as bigint) ?? nextId;
 
     return {
-      invoiceId: invoiceIdHex,
-      paymentSecret: bytesToHex(paymentSecret),
-      salt: bytesToHex(salt),
-      merchantCoinPk: bytesToHex(opening.merchantCoinPk),
-      tokenColor: bytesToHex(opening.tokenColor),
+      invoiceId: invoiceId.toString(),
+      paymentSecret: toHex(paymentSecret),
+      salt: toHex(salt),
+      merchantCoinPk: toHex(opening.merchantCoinPk),
+      tokenColor: toHex(opening.tokenColor),
       expiresAt: args.expiresAt.toString(),
       invoiceType: args.invoiceType,
     };
   }
 
-  private async stageSettlement(
-    invoiceIdHex: string,
-    opening: InvoiceOpeningValue,
-  ): Promise<{ invoiceId: Uint8Array; state: VeilPay3PrivateState }> {
-    const invoiceId = hexToBytes(invoiceIdHex);
-    const state = withPaymentNonce3(
-      withInvoiceOpening3(await this.privateState(), invoiceIdHex, opening),
-      invoiceIdHex,
-      utils.randomBytes(32),
-    );
-    await this.providers.privateStateProvider.set(veilPay3PrivateStateKey, state);
-    return { invoiceId, state };
-  }
-
   /** Payer settles a standard invoice and moves shielded value atomically. */
-  async settleStandard(invoiceIdHex: string, opening: InvoiceOpeningValue, coin: SpendableCoin): Promise<void> {
-    const { invoiceId } = await this.stageSettlement(invoiceIdHex, opening);
+  async settleStandard(invoiceId: bigint, opening: InvoiceOpeningValue, coin: SpendableCoin): Promise<void> {
+    await this.stageOpening(invoiceId, opening);
     await this.deployedContract.callTx.settleStandard(invoiceId, toQualified(coin));
   }
 
   /** Payer contributes to a Multi Pay campaign; the invoice stays open. */
   async settleMultiPayment(
-    invoiceIdHex: string,
+    invoiceId: bigint,
     opening: InvoiceOpeningValue,
     coin: SpendableCoin,
   ): Promise<void> {
-    const { invoiceId } = await this.stageSettlement(invoiceIdHex, opening);
+    await this.stageOpening(invoiceId, opening);
     await this.deployedContract.callTx.settleMultiPayment(invoiceId, toQualified(coin));
   }
 
-  /** Payer donates a chosen amount; change returns to the payer and the invoice stays open. */
+  /** Payer donates a chosen amount; change returns to the payer. */
   async acceptDonation(
-    invoiceIdHex: string,
+    invoiceId: bigint,
     opening: InvoiceOpeningValue,
     coin: SpendableCoin,
     amount: bigint,
   ): Promise<void> {
-    const { invoiceId } = await this.stageSettlement(invoiceIdHex, opening);
+    await this.stageOpening(invoiceId, opening);
     await this.deployedContract.callTx.acceptDonation(invoiceId, toQualified(coin), amount);
   }
 
   /** Merchant closes a Multi Pay campaign. */
-  async settleMulti(invoiceIdHex: string): Promise<void> {
-    this.logger?.info(`settling v3 multi-pay invoice ${invoiceIdHex}`);
-    await this.deployedContract.callTx.settleMulti(hexToBytes(invoiceIdHex));
+  async settleMulti(invoiceId: bigint): Promise<void> {
+    this.logger?.info(`settling v3 multi-pay invoice #${invoiceId}`);
+    await this.deployedContract.callTx.settleMulti(invoiceId);
   }
 
   /** Merchant cancels an unpaid invoice. */
-  async cancelInvoice(invoiceIdHex: string): Promise<void> {
-    this.logger?.info(`cancelling v3 invoice ${invoiceIdHex}`);
-    await this.deployedContract.callTx.cancelInvoice(hexToBytes(invoiceIdHex));
+  async cancelInvoice(invoiceId: bigint): Promise<void> {
+    this.logger?.info(`cancelling v3 invoice #${invoiceId}`);
+    await this.deployedContract.callTx.cancelInvoice(invoiceId);
   }
 
   /** Public verification: is this invoice settled (paid or closed)? */
-  async isSettled(invoiceIdHex: string): Promise<boolean> {
+  async isSettled(invoiceId: bigint): Promise<boolean> {
     const contractState = await this.providers.publicDataProvider.queryContractState(
       this.deployedContractAddress,
     );
     if (!contractState) return false;
     const l = VeilPay3Generated.ledger(contractState.data);
-    const invoiceId = hexToBytes(invoiceIdHex);
     if (!l.invoices.member(invoiceId)) return false;
     const status = l.invoices.lookup(invoiceId).status;
     return (

@@ -102,7 +102,6 @@ export type Invoice3View = {
   readonly opening: VeilPay3InvoiceOpening;
   /** InvoiceStatus enum value from the generated contract, when known. */
   readonly status: number | null;
-  readonly version: bigint;
   readonly expiresAt: bigint;
   readonly hasReceipt: boolean;
 };

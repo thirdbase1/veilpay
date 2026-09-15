@@ -7,12 +7,11 @@
  *   issue <amount> [ttlOps] [type] [tokenColorHex]
  *                                              merchant invoice; prints id + secret
  *                                              type: standard (default) | multipay | donation
- *   pay <invoiceIdHex> <secretHex> <value> [colorHex] [nonceHex] [mtIndex]
+ *   pay <invoiceId> <secretHex> <value> [colorHex] [nonceHex] [mtIndex]
  *                                              settle AND move value on-chain
- *                                              (standard closes; multi/donation stay open)
- *   settle <invoiceIdHex>                      merchant closes a Multi Pay campaign
- *   cancel <invoiceIdHex>                      merchant cancels an unpaid invoice
- *   status [invoiceIdHex]                      ledger summary or one invoice
+ *   settle <invoiceId>                         merchant closes a Multi Pay campaign
+ *   cancel <invoiceId>                         merchant cancels an unpaid invoice
+ *   status [invoiceId]                         ledger summary or one invoice
  *
  * Usage:
  *   npm --workspace cli run preprod-gateway3      # deploy v3
@@ -40,7 +39,7 @@ const deployedAddress = (): string | null => {
   return null;
 };
 
-const STATUS_NAMES = ['ACTIVE', 'PAID', 'SETTLED', 'CANCELLED', 'REFUNDED'] as const;
+const STATUS_NAMES = ['ACTIVE', 'PAID', 'SETTLED', 'CANCELLED'] as const;
 const TYPE_NAMES = ['standard', 'multipay', 'donation'] as const;
 
 const unhex32 = (s: string, label: string): Uint8Array => {
@@ -51,15 +50,14 @@ const unhex32 = (s: string, label: string): Uint8Array => {
 
 const hexToBytes = (s: string): Uint8Array => new Uint8Array(Buffer.from(s.replace(/^0x/, ''), 'hex'));
 
-const invoiceJson = (invoiceId: string, state: InvoiceState): string =>
+const invoiceJson = (invoiceId: bigint, state: InvoiceState): string =>
   JSON.stringify(
     {
-      invoiceId,
-      commitment: toHex(state.invoiceCommitment),
-      merchantAuthCommitment: toHex(state.merchantAuthCommitment),
+      invoiceId: invoiceId.toString(),
+      commitment: toHex(state.commitment),
+      merchantAuth: toHex(state.merchantAuth),
       invoiceType: TYPE_NAMES[Number(state.invoiceType)] ?? String(state.invoiceType),
       status: STATUS_NAMES[Number(state.status)] ?? String(state.status),
-      version: state.version.toString(),
       expiresAt: state.expiresAt.toString(),
     },
     null,
@@ -120,23 +118,31 @@ const run = async (argv: string[]): Promise<void> => {
           expiresAt,
         });
         console.log(
-          JSON.stringify(
-            {
-              ...issued,
-              explorer: `${EXPLORER}/contracts/0x${address}`,
-            },
-            null,
-            2,
-          ),
+          JSON.stringify({ ...issued, explorer: `${EXPLORER}/contracts/0x${address}` }, null, 2),
         );
         break;
       }
       case 'pay': {
-        const invoiceId = rest[0] ?? '';
+        const invoiceId = BigInt(rest[0] ?? '');
         const secretHex = rest[1] ?? process.env.VEILPAY_PAYMENT_SECRET;
         const value = BigInt(rest[2] ?? '0');
-        if (!invoiceId || !secretHex || !value) {
-          logger.error('usage: pay <invoiceIdHex> <secretHex> <value> [colorHex] [nonceHex] [mtIndex]');
+        if (!secretHex || !value) {
+          logger.error('usage: pay <invoiceId> <secretHex> <value> [colorHex] [nonceHex] [mtIndex]');
+          process.exitCode = 1;
+          break;
+        }
+        const state = (await providers.privateStateProvider.get('veilPay3PrivateState')) as
+          | { invoiceOpenings?: Record<string, InvoiceOpening> }
+          | undefined;
+        const opening = state?.invoiceOpenings?.[invoiceId.toString()];
+        if (!opening) {
+          logger.error(`no local opening for invoice ${invoiceId}; run issue in this workspace first`);
+          process.exitCode = 1;
+          break;
+        }
+        const paymentSecret = unhex32(secretHex, 'paymentSecret');
+        if (toHex(paymentSecret) !== toHex(opening.paymentSecret)) {
+          logger.error('payment secret does not match the stored invoice opening');
           process.exitCode = 1;
           break;
         }
@@ -146,55 +152,38 @@ const run = async (argv: string[]): Promise<void> => {
           nonce: rest[4] ? unhex32(rest[4], 'nonce') : randomBytes(32),
           mtIndex: rest[5] ? BigInt(rest[5]) : 0n,
         };
-        const state = (await providers.privateStateProvider.get('veilPay3PrivateState')) as
-          | { invoiceOpenings?: Record<string, InvoiceOpening> }
-          | undefined;
-        const opening = state?.invoiceOpenings?.[invoiceId];
-        if (!opening) {
-          logger.error(`no local opening for invoice ${invoiceId}; run issue in this workspace first`);
-          process.exitCode = 1;
-          break;
-        }
-        const ledgerState = (await readLedger()).invoices.lookup(hexToBytes(invoiceId));
-        const paymentSecret = unhex32(secretHex, 'paymentSecret');
-        if (toHex(paymentSecret) !== toHex(opening.paymentSecret)) {
-          logger.error('payment secret does not match the stored invoice opening');
-          process.exitCode = 1;
-          break;
-        }
-        if (Number(ledgerState.invoiceType) === 0) {
-          await api.settleStandard(invoiceId, opening, coin);
-        } else if (Number(ledgerState.invoiceType) === 1) {
-          await api.settleMultiPayment(invoiceId, opening, coin);
-        } else {
-          await api.acceptDonation(invoiceId, opening, coin, value);
-        }
+        const ledgerState = (await readLedger()).invoices.lookup(invoiceId);
+        const type = Number(ledgerState.invoiceType);
+        if (type === 0) await api.settleStandard(invoiceId, opening, coin);
+        else if (type === 1) await api.settleMultiPayment(invoiceId, opening, coin);
+        else await api.acceptDonation(invoiceId, opening, coin, value);
+
         const settled = await api.isSettled(invoiceId);
-        console.log(JSON.stringify({ invoiceId, isSettled: settled, spentValue: value.toString() }, null, 2));
+        console.log(JSON.stringify({ invoiceId: invoiceId.toString(), isSettled: settled, spentValue: value.toString() }, null, 2));
         break;
       }
       case 'settle': {
-        const invoiceId = rest[0] ?? '';
+        const invoiceId = BigInt(rest[0] ?? '');
         await api.settleMulti(invoiceId);
-        console.log(JSON.stringify({ invoiceId, settled: true }, null, 2));
+        console.log(JSON.stringify({ invoiceId: invoiceId.toString(), settled: true }, null, 2));
         break;
       }
       case 'cancel': {
-        const invoiceId = rest[0] ?? '';
+        const invoiceId = BigInt(rest[0] ?? '');
         await api.cancelInvoice(invoiceId);
-        console.log(JSON.stringify({ invoiceId, cancelled: true }, null, 2));
+        console.log(JSON.stringify({ invoiceId: invoiceId.toString(), cancelled: true }, null, 2));
         break;
       }
       case 'status': {
         const l = await readLedger();
         if (rest[0]) {
-          const invoiceId = hexToBytes(rest[0]);
+          const invoiceId = BigInt(rest[0]);
           if (!l.invoices.member(invoiceId)) {
             logger.error(`no invoice ${rest[0]}`);
             process.exitCode = 1;
             break;
           }
-          console.log(invoiceJson(rest[0], l.invoices.lookup(invoiceId)));
+          console.log(invoiceJson(invoiceId, l.invoices.lookup(invoiceId)));
         } else {
           console.log(
             JSON.stringify(

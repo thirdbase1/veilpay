@@ -1,5 +1,6 @@
-import { VeilPay3Simulator, qualifiedCoin } from "./veilpay3-simulator.js";
+import { VeilPay3Simulator, qualifiedCoin, type OpeningArgs } from "./veilpay3-simulator.js";
 import { InvoiceStatus, InvoiceType } from "../managed/veilpay3/contract/index.js";
+import { createVeilPay3PrivateState, withInvoiceOpening3 } from "../witnesses3.js";
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 import { describe, it, expect } from "vitest";
 import { randomBytes } from "./utils.js";
@@ -11,69 +12,66 @@ const FAR_FUTURE = 1_000_000n;
 const ANY_TOKEN = new Uint8Array(32);
 const merchantPk = () => randomBytes(32);
 
-const invoiceIdHex = (id: Uint8Array) => Buffer.from(id).toString("hex");
+const baseArgs = (overrides: Partial<OpeningArgs> = {}): OpeningArgs & { expiresAt: bigint } => ({
+  amount: AMOUNT,
+  tokenColor: ANY_TOKEN,
+  merchantCoinPk: merchantPk(),
+  invoiceType: "standard",
+  paymentSecret: randomBytes(32),
+  salt: randomBytes(32),
+  expiresAt: FAR_FUTURE,
+  ...overrides,
+});
 
 describe("VeilPay v3 contract (private invoices)", () => {
   it("issues a standard invoice storing only commitments", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const paymentSecret = randomBytes(32);
-    const { ledger, invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret,
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { ledger, invoiceId } = sim.issueInvoice(baseArgs());
 
     const state = ledger.invoices.lookup(invoiceId);
+    expect(invoiceId).toEqual(1n);
     expect(state.status).toEqual(InvoiceStatus.ACTIVE);
     expect(state.invoiceType).toEqual(InvoiceType.STANDARD);
-    expect(state.version).toEqual(0n);
-    expect(state.invoiceCommitment).toEqual(invoiceId);
+    expect(state.commitment.length).toEqual(32);
     expect(ledger.sequence).toEqual(1n);
-    expect(opening.paymentSecret).toEqual(paymentSecret);
+  });
+
+  it("rejects an opening that does not match the issued terms", () => {
+    const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
+    const args = baseArgs();
+    const mismatched = { ...args, amount: AMOUNT + 1n };
+    const nextId = 1n;
+    sim.setPrivateState(
+      withInvoiceOpening3(
+        createVeilPay3PrivateState(randomBytes(32), randomBytes(32)),
+        nextId,
+        sim.buildOpening(mismatched),
+      ),
+    );
+
+    expect(() =>
+      sim.issueInvoice(args),
+    ).toThrow("opening amount mismatch");
   });
 
   it("settles a standard invoice and moves the requested amount", () => {
-    const merchantKey = randomBytes(32);
-    const sim = VeilPay3Simulator.deploy(merchantKey, randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
+    const { invoiceId } = sim.issueInvoice(baseArgs());
 
-    const coin = qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32));
-    const { ledger, result } = sim.settleStandard(invoiceIdHex(invoiceId), opening, coin);
+    const result = sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
 
-    expect(ledger.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.PAID);
+    expect(sim.getLedger().invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.PAID);
     expect(result.sent.value).toEqual(AMOUNT);
     expect(result.change.is_some).toEqual(false);
-    expect(ledger.usedNullifiers.size()).toEqual(1n);
-    expect(ledger.receiptCommitments.size()).toEqual(2n);
+    expect(sim.getLedger().receipts.member(invoiceId)).toEqual(true);
   });
 
   it("returns change to the payer when the coin exceeds the amount", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs());
 
-    const { result } = sim.settleStandard(
-      invoiceIdHex(invoiceId),
-      opening,
+    const result = sim.settleStandard(
+      invoiceId,
       qualifiedCoin(AMOUNT + 400n, randomBytes(32), randomBytes(32)),
     );
 
@@ -84,234 +82,123 @@ describe("VeilPay v3 contract (private invoices)", () => {
 
   it("rejects a second settlement of the same standard invoice", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
-
-    sim.settleStandard(
-      invoiceIdHex(invoiceId),
-      opening,
-      qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-    );
+    const { invoiceId } = sim.issueInvoice(baseArgs());
+    sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
 
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(invoiceId),
-        opening,
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
     ).toThrow("invoice not active");
   });
 
   it("rejects a coin that cannot cover the invoice", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs());
 
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(invoiceId),
-        opening,
-        qualifiedCoin(AMOUNT - 1n, randomBytes(32), randomBytes(32)),
-      ),
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT - 1n, randomBytes(32), randomBytes(32))),
     ).toThrow("coin cannot cover invoice");
   });
 
   it("rejects the wrong token color when the invoice pins one", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const tokenColor = randomBytes(32);
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs({ tokenColor: randomBytes(32) }));
 
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(invoiceId),
-        opening,
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
     ).toThrow("wrong token color");
   });
 
-  it("rejects a settlement whose opening does not match the commitment", () => {
+  it("rejects a settlement with no local opening", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs());
+    sim.setPrivateState(createVeilPay3PrivateState(randomBytes(32), randomBytes(32)));
 
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(invoiceId),
-        { ...opening, amount: AMOUNT + 1n },
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
-    ).toThrow("invalid invoice opening");
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
+    ).toThrow("No invoice opening known");
   });
 
   it("accepts repeated multi-pay settlements until the merchant settles", () => {
-    const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "multipay",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const merchantKey = randomBytes(32);
+    const sim = VeilPay3Simulator.deploy(merchantKey, randomBytes(32));
+    const { invoiceId } = sim.issueInvoice(baseArgs({ invoiceType: "multipay" }));
 
-    const id = invoiceIdHex(invoiceId);
-    const first = sim.settleMultiPayment(id, opening, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
-    expect(first.ledger.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
+    sim.settleMultiPayment(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
+    expect(sim.getLedger().invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
 
-    const second = sim.settleMultiPayment(id, opening, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
-    expect(second.ledger.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
-    expect(second.ledger.usedNullifiers.size()).toEqual(2n);
+    sim.settleMultiPayment(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)));
+    expect(sim.getLedger().invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
 
-    const settled = sim.settleMulti(id);
+    const settled = sim.settleMulti(invoiceId);
     expect(settled.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.SETTLED);
+  });
+
+  it("rejects a settlement of a multi-pay campaign as standard", () => {
+    const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
+    const { invoiceId } = sim.issueInvoice(baseArgs({ invoiceType: "multipay" }));
+
+    expect(() =>
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
+    ).toThrow("invoice type invalid");
   });
 
   it("accepts variable donation amounts and returns change", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: 0n,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "donation",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs({ amount: 0n, invoiceType: "donation" }));
 
-    const id = invoiceIdHex(invoiceId);
-    const { result } = sim.acceptDonation(id, opening, qualifiedCoin(5000n, randomBytes(32), randomBytes(32)), 200n);
+    const result = sim.acceptDonation(
+      invoiceId,
+      qualifiedCoin(5000n, randomBytes(32), randomBytes(32)),
+      200n,
+    );
     expect(result.sent.value).toEqual(200n);
     expect(result.change.is_some).toEqual(true);
     expect(result.change.value?.value).toEqual(4800n);
 
-    const again = sim.acceptDonation(id, opening, qualifiedCoin(75n, randomBytes(32), randomBytes(32)), 75n);
-    expect(again.ledger.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
-    expect(again.ledger.usedNullifiers.size()).toEqual(2n);
+    const again = sim.acceptDonation(invoiceId, qualifiedCoin(75n, randomBytes(32), randomBytes(32)), 75n);
+    expect(again.sent.value).toEqual(75n);
+    expect(sim.getLedger().invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.ACTIVE);
   });
 
   it("rejects a zero or uncovered donation", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: 0n,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "donation",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs({ amount: 0n, invoiceType: "donation" }));
 
-    const id = invoiceIdHex(invoiceId);
-    expect(() => sim.acceptDonation(id, opening, qualifiedCoin(100n, randomBytes(32), randomBytes(32)), 0n)).toThrow(
-      "donation must be positive",
-    );
     expect(() =>
-      sim.acceptDonation(id, opening, qualifiedCoin(100n, randomBytes(32), randomBytes(32)), 101n),
+      sim.acceptDonation(invoiceId, qualifiedCoin(100n, randomBytes(32), randomBytes(32)), 0n),
+    ).toThrow("donation must be positive");
+    expect(() =>
+      sim.acceptDonation(invoiceId, qualifiedCoin(100n, randomBytes(32), randomBytes(32)), 101n),
     ).toThrow("coin cannot cover donation");
   });
 
   it("rejects settlement after the deadline", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const expiring = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: 1n,
-    });
-    sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const expiring = sim.issueInvoice(baseArgs({ expiresAt: 1n }));
+    sim.issueInvoice(baseArgs());
 
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(expiring.invoiceId),
-        expiring.opening,
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
+      sim.settleStandard(expiring.invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
     ).toThrow("invoice expired");
   });
 
   it("cancels an unpaid invoice and blocks later settlement", () => {
-    const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const merchantKey = randomBytes(32);
+    const sim = VeilPay3Simulator.deploy(merchantKey, randomBytes(32));
+    const { invoiceId } = sim.issueInvoice(baseArgs());
 
-    const ledgerAfterCancel = sim.cancelInvoice(invoiceIdHex(invoiceId));
+    const ledgerAfterCancel = sim.cancelInvoice(invoiceId);
     expect(ledgerAfterCancel.invoices.lookup(invoiceId).status).toEqual(InvoiceStatus.CANCELLED);
     expect(() =>
-      sim.settleStandard(
-        invoiceIdHex(invoiceId),
-        opening,
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
+      sim.settleStandard(invoiceId, qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32))),
     ).toThrow("invoice not active");
   });
 
-  it("rejects a mismatched invoice type at settlement", () => {
+  it("rejects cancel from a different merchant key", () => {
     const sim = VeilPay3Simulator.deploy(randomBytes(32), randomBytes(32));
-    const { invoiceId, opening } = sim.issueInvoice({
-      amount: AMOUNT,
-      tokenColor: ANY_TOKEN,
-      merchantCoinPk: merchantPk(),
-      invoiceType: "standard",
-      paymentSecret: randomBytes(32),
-      salt: randomBytes(32),
-      expiresAt: FAR_FUTURE,
-    });
+    const { invoiceId } = sim.issueInvoice(baseArgs());
+    sim.setPrivateState(createVeilPay3PrivateState(randomBytes(32), randomBytes(32)));
 
-    expect(() =>
-      sim.settleMultiPayment(
-        invoiceIdHex(invoiceId),
-        opening,
-        qualifiedCoin(AMOUNT, randomBytes(32), randomBytes(32)),
-      ),
-    ).toThrow("invoice type invalid");
+    expect(() => sim.cancelInvoice(invoiceId)).toThrow("not the invoice merchant");
   });
 });
