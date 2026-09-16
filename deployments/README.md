@@ -11,6 +11,7 @@ rebuilding it.
 | `preprod.json` | Deployment artifact: live contract address, deploy tx, block, network endpoints, compiler versions, source hash, and how it was deployed. |
 | `veilpay-contract-info.json` | Compiler-generated circuit/state schema (circuits, witnesses, ledger shape). Read this to know the exact entry-point argument types. |
 | `preprod-v2.json` | **v2** deployment artifact: the NullPay-parity contract with real shielded token transfers. |
+| `preprod-v3.json` | **v3** deployment artifact: private invoices with atomic shielded settlement (standard / multi-pay / donation). |
 
 ## Live contracts
 
@@ -28,6 +29,14 @@ rebuilding it.
 - Block 2,521,381 · deploy tx `0x80bc77767f62fe711c8f1095a261f5a5296de665d2523850ab9afdf8e5982ad2`
 - Explorer: https://preprod.midnightexplorer.com/contracts/0x85a0f911bb554bf4b7e9a69bb2ee2c20a03b823b20274eade45c6b18f53583a7
 - Deployed with `npm --workspace cli run preprod-gateway2` (same sponsored gateway path).
+
+### v3 — private invoices, atomic shielded settlement (current)
+
+- Address: `0xaad2cd8b9a98c9b8f7c6f3edd562d895705c19d24eb122c5253b22187e950772`
+- Network: Midnight **Preprod** · block 2,560,624 (verified via indexer `contractAction`)
+- Explorer: https://preprod.midnightexplorer.com/contracts/0xaad2cd8b9a98c9b8f7c6f3edd562d895705c19d24eb122c5253b22187e950772
+- Deployed with `npm --workspace cli run preprod-gateway3` (same sponsored gateway path).
+- Drive it with `npm --workspace cli run preprod-tx3 -- <issue|pay|settle|cancel|status>`.
 
 ## What v1 does / does not do
 
@@ -57,6 +66,27 @@ token, NullPay's `create_invoice_any` equivalent).
 
 Full v2 schemas (including the `coin: QualifiedShieldedCoinInfo` argument and
 `receipts` ledger) are in `preprod-v2.json`.
+
+## What v3 does
+
+`veilpay3.compact` is the invoice-native contract: the v2 payment-intent model
+becomes a full **private invoice lifecycle**. Invoice terms (amount, token
+color, merchant receiver key, type, payment secret, salt) are committed as a
+single hash; only the commitment, id, expiry, and status reach the ledger.
+
+Circuits (all proven; full schemas in `preprod-v3.json`):
+
+- `issueInvoice(amount, tokenColor, merchantCoinPk, invoiceType, expiresAt) -> Uint<64>` — merchant publishes a private invoice; returns the id.
+- `settleStandard(invoiceId, coin)` — payer consumes a shielded coin, the exact amount moves to the merchant key inside zswap, change returns to the payer, a receipt commitment is stored, and the invoice closes **atomically**.
+- `settleMultiPayment(invoiceId, coin)` — one contribution to a Multi Pay campaign; invoice stays ACTIVE.
+- `acceptDonation(invoiceId, coin, amount)` — payer-chosen amount against a donation invoice.
+- `settleMulti(invoiceId)` / `cancelInvoice(invoiceId)` — merchant closes or cancels (witness: `merchantSecretKey`).
+
+Public reads: `sequence` (Counter / invoice-id source), `invoices`
+(Map<Uint<64>, InvoiceState>), `receipts` (Map<Uint<64>, Bytes<32>>).
+
+Token support: **any zswap shielded token color**; a zero color means an open
+invoice that accepts any token.
 
 ## Rebuilding the managed artifacts
 
